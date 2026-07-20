@@ -1,0 +1,24 @@
+# Handle line endings automatically for all files
+* text=auto
+
+# Python files — always use LF
+*.py text eol=lf
+
+# Config / text files — always use LF
+*.txt    text eol=lf
+*.md     text eol=lf
+*.env    text eol=lf
+*.example text eol=lf
+*.gitignore text eol=lf
+*.gitattributes text eol=lf
+
+# Windows-specific files — use CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary files — no conversion
+*.pdf  binary
+*.png  binary
+*.jpg  binary
+*.zip  binary

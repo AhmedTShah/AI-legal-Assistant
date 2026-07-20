@@ -1,0 +1,22 @@
+# ── Google Gemini (embeddings) ────────────────────────────────────────────────
+google-generativeai>=0.7.0
+
+# ── Playwright (async browser automation) ─────────────────────────────────────
+playwright>=1.44.0
+
+# ── PDF text extraction ────────────────────────────────────────────────────────
+pdfplumber>=0.11.0
+
+# ── Qdrant vector DB client ────────────────────────────────────────────────────
+qdrant-client>=1.9.0
+
+# ── Environment variable management ───────────────────────────────────────────
+python-dotenv>=1.0.1
+
+# ── Token counting (for chunker) ───────────────────────────────────────────────
+tiktoken>=0.7.0
+
+# ── HTTP client for PDF downloads (used by base_scraper) ──────────────────────
+httpx>=0.27.0
+
+# asyncio is built-in for Python 3.10+ — no install needed
