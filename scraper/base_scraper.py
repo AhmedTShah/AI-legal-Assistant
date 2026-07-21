@@ -200,7 +200,7 @@ class BaseScraper(ABC):
                 # expect_download() captures the file download event.
                 # page.goto() always raises when a download starts — this is
                 # expected Playwright behaviour, so we swallow that exception.
-                async with dl_page.expect_download(timeout=60_000) as download_info:
+                async with dl_page.expect_download(timeout=10_000) as download_info:
                     try:
                         await dl_page.goto(url)
                     except Exception:

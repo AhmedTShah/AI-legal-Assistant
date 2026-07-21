@@ -100,7 +100,11 @@ def ingest_pdf(
             # Required metadata fields per spec
             "court"      : court,
             "year"       : year or _guess_year(pdf_path.name),
-            "source_url" : source_url or (f"https://sys.lhc.gov.pk/appjudgments/{pdf_path.name}" if court == "LHC" else ""),
+            "source_url" : source_url or (
+                f"https://sys.lhc.gov.pk/appjudgments/{pdf_path.name}" if court == "LHC" 
+                else (f"https://caselaw.shc.gov.pk/caselaw/view-file/{pdf_path.stem.split('_SHC_')[-1]}" if court == "SHC" and "_SHC_" in pdf_path.name 
+                else "")
+            ),
             "laws_cited" : laws_cited or [],
             "case_type"  : case_type,
             # Provenance
@@ -163,8 +167,10 @@ def main() -> None:
     if args.pdf:
         pdfs = [args.pdf]
     elif args.dir:
-        pdfs = sorted(args.dir.glob("*.pdf"))
-        logger.info("Found %d PDF(s) in %s", len(pdfs), args.dir)
+        all_pdfs = sorted(args.dir.glob("*.pdf"))
+        court_filter = args.court.upper()
+        pdfs = [p for p in all_pdfs if court_filter in p.name.upper()]
+        logger.info("Found %d PDF(s) matching court '%s' in %s", len(pdfs), court_filter, args.dir)
 
     total = 0
     for pdf in pdfs:
