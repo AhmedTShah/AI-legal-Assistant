@@ -26,8 +26,8 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 # ── Config ────────────────────────────────────────────────────────────────────
-# text-embedding-004 produces 768-dim vectors (stable, production-ready)
-EMBEDDING_MODEL  = "models/text-embedding-004"
+# gemini-embedding-001 produces 3072-dim vectors, truncated to 768 to match collection
+EMBEDDING_MODEL  = "models/gemini-embedding-001"
 EMBEDDING_DIM    = 768      # update qdrant_client.py VECTOR_SIZE to match
 BATCH_SIZE       = 100      # Gemini supports up to 100 texts per batch call
 RATE_LIMIT_SLEEP = 1.0      # seconds between batches
@@ -47,6 +47,7 @@ def embed_texts(
     texts: list,
     model: str = EMBEDDING_MODEL,
     task_type: str = "RETRIEVAL_DOCUMENT",
+    output_dimensionality: Optional[int] = EMBEDDING_DIM,
 ) -> list:
     """
     Generate Gemini embeddings for a list of raw text strings.
@@ -77,6 +78,7 @@ def embed_texts(
                 model=model,
                 content=batch,
                 task_type=task_type,
+                output_dimensionality=output_dimensionality,
             )
             # result["embedding"] is a list of vectors when content is a list
             vectors = result["embedding"]
@@ -95,6 +97,7 @@ def embed_texts(
                     model=model,
                     content=batch,
                     task_type=task_type,
+                    output_dimensionality=output_dimensionality,
                 )
                 all_embeddings.extend(result["embedding"])
             else:
@@ -109,6 +112,7 @@ def embed_chunks(
     chunks: list,
     model: str = EMBEDDING_MODEL,
     task_type: str = "RETRIEVAL_DOCUMENT",
+    output_dimensionality: Optional[int] = EMBEDDING_DIM,
 ) -> list:
     """
     Add an 'embedding' field to each chunk dict in-place.
@@ -122,7 +126,12 @@ def embed_chunks(
         The same list with each dict enriched with an 'embedding' key.
     """
     texts = [c["text"] for c in chunks]
-    vectors = embed_texts(texts, model=model, task_type=task_type)
+    vectors = embed_texts(
+        texts,
+        model=model,
+        task_type=task_type,
+        output_dimensionality=output_dimensionality,
+    )
 
     for chunk, vector in zip(chunks, vectors):
         chunk["embedding"] = vector

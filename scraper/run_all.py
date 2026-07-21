@@ -1,9 +1,12 @@
 """
 run_all.py — Entry point to run all court scrapers concurrently.
 
+Scrapes criminal + cybercrime judgments only (Crl., Criminal, Jail, PECA case types).
+Each court scraper filters by case type internally — no keyword search needed.
+
 Usage:
-    python -m scraper.run_all --keyword "PECA" --pages 5
-    python -m scraper.run_all --keyword "cybercrime" --courts lhc shc
+    python -m scraper.run_all --pages 5
+    python -m scraper.run_all --courts lhc scp --pages 10
 """
 
 import argparse
@@ -33,10 +36,10 @@ COURT_REGISTRY = {
 }
 
 
-async def run_scraper_safe(name, scraper_cls, keyword, pages, downloads_dir):
+async def run_scraper_safe(name, scraper_cls, year, pages, downloads_dir):
     """Run a single scraper and catch NotImplementedError for stubs."""
     try:
-        scraper = scraper_cls(keyword=keyword, max_pages=pages, downloads_dir=downloads_dir)
+        scraper = scraper_cls(year=year, max_pages=pages, downloads_dir=downloads_dir)
         results = await scraper.run()
         logger.info("[%s] %d PDF(s) downloaded.", name.upper(), len(results))
         return name, results
@@ -48,12 +51,12 @@ async def run_scraper_safe(name, scraper_cls, keyword, pages, downloads_dir):
         return name, []
 
 
-async def main(keyword, courts, pages, downloads_dir):
+async def main(courts, year, pages, downloads_dir):
     tasks = [
         run_scraper_safe(
             name=court,
             scraper_cls=COURT_REGISTRY[court],
-            keyword=keyword,
+            year=year,
             pages=pages,
             downloads_dir=downloads_dir,
         )
@@ -73,12 +76,14 @@ async def main(keyword, courts, pages, downloads_dir):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Run all (or selected) court scrapers.")
-    parser.add_argument("--keyword", default="PECA")
+    parser = argparse.ArgumentParser(
+        description="Run all (or selected) court scrapers — criminal + cybercrime cases only."
+    )
     parser.add_argument(
         "--courts", nargs="+", default=list(COURT_REGISTRY.keys()),
         choices=list(COURT_REGISTRY.keys()),
     )
+    parser.add_argument("--year", type=int, default=2026, help="Target year to scrape")
     parser.add_argument("--pages", type=int, default=10)
     parser.add_argument(
         "--downloads-dir", type=Path,
@@ -89,4 +94,4 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    asyncio.run(main(args.keyword, args.courts, args.pages, args.downloads_dir))
+    asyncio.run(main(args.courts, args.year, args.pages, args.downloads_dir))

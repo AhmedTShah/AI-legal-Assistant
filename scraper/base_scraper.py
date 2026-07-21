@@ -52,6 +52,7 @@ class BaseScraper(ABC):
     def __init__(
         self,
         keyword: str,
+        year: int = 2026,
         downloads_dir: Optional[Path] = None,
         headless: bool = True,
         max_pages: int = DEFAULT_MAX_PAGES,
@@ -60,6 +61,7 @@ class BaseScraper(ABC):
         timeout_ms: int = DEFAULT_TIMEOUT_MS,
     ) -> None:
         self.keyword       = keyword
+        self.year          = year
         self.downloads_dir = downloads_dir or DEFAULT_DOWNLOADS_DIR
         self.headless      = headless
         self.max_pages     = max_pages
@@ -173,7 +175,15 @@ class BaseScraper(ABC):
 
     # ── PDF download ──────────────────────────────────────────────────────────
     async def _download_pdf(self, url: str) -> Optional[Path]:
-        """Download a single PDF via httpx. Skips already-downloaded files."""
+        """
+        Download a single PDF using Playwright's download interception.
+
+        When a browser navigates to a PDF URL, Chromium triggers a file download
+        event. We use expect_download() to capture and save it to disk.
+        This handles legacy TLS (1.0/1.1) on Pakistani government servers that
+        Python's modern OpenSSL refuses to negotiate with.
+        Skips already-downloaded files.
+        """
         filename = self._url_to_filename(url)
         dest = self.downloads_dir / filename
 
@@ -182,34 +192,40 @@ class BaseScraper(ABC):
             return dest
 
         for attempt in range(1, self.max_retries + 1):
+            dl_page = None
             try:
                 self.logger.info("[%d/%d] Downloading %s ...", attempt, self.max_retries, url)
-                async with httpx.AsyncClient(follow_redirects=True, timeout=60) as client:
-                    response = await client.get(url)
-                    response.raise_for_status()
+                dl_page = await self._context.new_page()
 
-                    content_type = response.headers.get("content-type", "")
-                    if "pdf" not in content_type and not url.lower().endswith(".pdf"):
-                        self.logger.warning(
-                            "Unexpected content-type %r for %s — skipping.",
-                            content_type, url,
-                        )
-                        return None
+                # expect_download() captures the file download event.
+                # page.goto() always raises when a download starts — this is
+                # expected Playwright behaviour, so we swallow that exception.
+                async with dl_page.expect_download(timeout=60_000) as download_info:
+                    try:
+                        await dl_page.goto(url)
+                    except Exception:
+                        pass  # Expected: goto raises when browser starts downloading
 
-                    dest.write_bytes(response.content)
-                self.logger.info("Saved -> %s", dest)
+                download = await download_info.value
+                await download.save_as(dest)
+
+                self.logger.info(
+                    "Saved -> %s (%d KB)", dest.name, dest.stat().st_size // 1024
+                )
                 return dest
 
-            except httpx.HTTPStatusError as exc:
-                self.logger.error("HTTP %s for %s", exc.response.status_code, url)
-                return None
             except Exception as exc:
                 self.logger.warning("Download attempt %d failed: %s", attempt, exc)
                 if attempt < self.max_retries:
                     await asyncio.sleep(self.retry_delay)
+            finally:
+                if dl_page:
+                    await dl_page.close()
 
         self.logger.error("All download attempts failed for %s", url)
         return None
+
+
 
     # ── Helpers ───────────────────────────────────────────────────────────────
     @staticmethod
