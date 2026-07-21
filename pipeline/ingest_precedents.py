@@ -100,7 +100,7 @@ def ingest_pdf(
             # Required metadata fields per spec
             "court"      : court,
             "year"       : year or _guess_year(pdf_path.name),
-            "source_url" : source_url,
+            "source_url" : source_url or (f"https://sys.lhc.gov.pk/appjudgments/{pdf_path.name}" if court == "LHC" else ""),
             "laws_cited" : laws_cited or [],
             "case_type"  : case_type,
             # Provenance
@@ -168,6 +168,28 @@ def main() -> None:
 
     total = 0
     for pdf in pdfs:
+        # Check if this file has already been ingested into Qdrant to prevent duplicates
+        try:
+            existing = client.scroll(
+                collection_name=COLLECTION_NAME,
+                scroll_filter=qmodels.Filter(
+                    must=[
+                        qmodels.FieldCondition(
+                            key="file_name",
+                            match=qmodels.MatchValue(value=pdf.name)
+                        )
+                    ]
+                ),
+                limit=1,
+                with_payload=False,
+                with_vectors=False
+            )
+            if existing[0]:
+                logger.info("PDF %s is already ingested — skipping.", pdf.name)
+                continue
+        except Exception as exc:
+            logger.warning("Could not check duplicate status for %s: %s", pdf.name, exc)
+
         try:
             total += ingest_pdf(
                 pdf_path=pdf,

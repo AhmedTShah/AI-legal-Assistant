@@ -19,4 +19,8 @@ tiktoken>=0.7.0
 # ── HTTP client for PDF downloads (used by base_scraper) ──────────────────────
 httpx>=0.27.0
 
+# ── OCR Fallback for scanned PDFs ─────────────────────────────────────────────
+easyocr>=1.7.2
+
+
 # asyncio is built-in for Python 3.10+ — no install needed
