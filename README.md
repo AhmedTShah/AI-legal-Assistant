@@ -32,7 +32,7 @@ LegalMind-Layer2/
 ├── uploads/                    # Temp folder for user-uploaded documents (git-ignored contents)
 ├── downloads/                  # Auto-created; court PDFs land here (git-ignored)
 │
-├── .env.example                # Credential template — copy to .env and fill in
+├── .env             
 ├── .gitignore
 ├── requirements.txt
 └── README.md
@@ -68,7 +68,6 @@ playwright install chromium
 ### 2. Configure credentials
 
 ```bash
-copy .env.example .env
 # Open .env and fill in QDRANT_API_KEY and OPENAI_API_KEY
 ```
 
