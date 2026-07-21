@@ -2,7 +2,7 @@
 
 > **Part of the LegalMind RAG-based Legal Research Assistant** for Pakistani criminal and cyber law.
 > This folder covers **Layer 2** (court judgments → `precedents_db`) and **Layer 3** (user-uploaded case docs → `user_misl_db`).
-> Layer 1 (statutes → `statutes_db`) is managed separately by a collaborator — do not touch that collection.
+> Layer 1 (statutes → `statutes_db`) is managed separately by a collaborator 
 
 ---
 
