@@ -26,7 +26,19 @@ Thumbs.db
 .idea/
 .vscode/
 
-# ── Test artifacts ─────────────────────────────────────────────────────────────
+# ── Test & Scratch artifacts ──────────────────────────────────────────────────
 .pytest_cache/
 htmlcov/
 .coverage
+*.html
+*.png
+check_*.py
+probe_*.py
+inspect_*.py
+test_*.py
+get_current_status_*.py
+fast_cleanup_*.py
+cleanup_*.py
+instant_cleanup.py
+rerun_*.py
+

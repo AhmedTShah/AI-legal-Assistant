@@ -36,7 +36,7 @@ def _ocr_page(pdf_path: Path, page_index: int) -> str:
     try:
         doc = pdfium.PdfDocument(str(pdf_path))
         page = doc[page_index]
-        bitmap = page.render(scale=2)  # Scale=2 increases OCR accuracy
+        bitmap = page.render(scale=1.2)  # Scale=1.2 provides fast, accurate CPU OCR
         pil_img = bitmap.to_pil()
         doc.close()
 
@@ -78,6 +78,9 @@ def extract_text_from_pdf(pdf_path: Path) -> tuple:
 
     with pdfplumber.open(pdf_path) as pdf:
         num_pages = len(pdf.pages)
+        if num_pages > 20:
+            logger.info("Skipping large PDF %s (%d pages > 20 page limit).", pdf_path.name, num_pages)
+            raise ValueError(f"Skipping PDF with {num_pages} pages (> 20 page limit).")
         for i, page in enumerate(pdf.pages, start=1):
             text = page.extract_text(x_tolerance=2, y_tolerance=2)
             if text and text.strip():

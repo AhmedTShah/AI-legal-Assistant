@@ -103,7 +103,10 @@ def ingest_pdf(
             "source_url" : source_url or (
                 f"https://sys.lhc.gov.pk/appjudgments/{pdf_path.name}" if court == "LHC" 
                 else (f"https://caselaw.shc.gov.pk/caselaw/view-file/{pdf_path.stem.split('_SHC_')[-1]}" if court == "SHC" and "_SHC_" in pdf_path.name 
-                else "")
+                else (f"https://bhc.gov.pk/media/judgments/{pdf_path.stem.split('_BHC_')[-1]}.pdf" if court == "BHC" and "_BHC_" in pdf_path.name
+                else (f"https://peshawarhighcourt.gov.pk/PHCCMS/judgments/{pdf_path.stem.split('_PHC_')[-1]}.pdf" if court == "PHC" and "_PHC_" in pdf_path.name
+                else (f"https://www.supremecourt.gov.pk/downloads_judgements/{pdf_path.stem.split('_SCP_')[-1]}.pdf" if court == "SCP" and "_SCP_" in pdf_path.name
+                else ""))))
             ),
             "laws_cited" : laws_cited or [],
             "case_type"  : case_type,

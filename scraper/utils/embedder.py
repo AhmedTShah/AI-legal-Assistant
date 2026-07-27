@@ -1,20 +1,10 @@
 """
-embedder.py — Generate Google Gemini embeddings for text chunks.
-
-Uses gemini-embedding-exp-03-07 (3072-dim output, truncated to 768 here)
-OR text-embedding-004 (768-dim) — both work with Qdrant collections.
-
-NOTE: Our Qdrant collections use vector size 768 when using Gemini.
-      If you already created collections with size 1536 (OpenAI), you must
-      recreate them with size 768 before ingesting.
-
-Usage:
-    from scraper.utils.embedder import embed_chunks
-    chunks = embed_chunks(chunks)   # chunks = list of {"text": str, ...}
+embedder.py — Generate Google Gemini embeddings with intelligent key rotation, monthly quota exclusion, and failover.
 """
 
 import logging
 import os
+import threading
 import time
 from typing import Optional
 
@@ -26,21 +16,63 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 # ── Config ────────────────────────────────────────────────────────────────────
-# gemini-embedding-001 produces 3072-dim vectors, truncated to 768 to match collection
 EMBEDDING_MODEL  = "models/gemini-embedding-001"
-EMBEDDING_DIM    = 768      # update qdrant_client.py VECTOR_SIZE to match
-BATCH_SIZE       = 100      # Gemini supports up to 100 texts per batch call
-RATE_LIMIT_SLEEP = 1.0      # seconds between batches
+EMBEDDING_DIM    = 768
+BATCH_SIZE       = 100
+RATE_LIMIT_SLEEP = 2.5
 
 
-def _configure_genai() -> None:
-    """Configure the Gemini SDK with the API key from environment."""
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise EnvironmentError(
-            "GEMINI_API_KEY not set. Add it to your .env file."
-        )
-    genai.configure(api_key=api_key)
+class KeyManager:
+    """Thread-safe API Key Rotator with automatic exclusion of exhausted keys."""
+    def __init__(self):
+        self._lock = threading.Lock()
+        raw_keys = os.getenv("GEMINI_API_KEYS", "")
+        all_keys = [k.strip() for k in raw_keys.split(",") if k.strip()] if raw_keys else []
+        if not all_keys:
+            single_key = os.getenv("GEMINI_API_KEY", "")
+            if single_key:
+                all_keys = [single_key.strip()]
+
+        if not all_keys:
+            raise EnvironmentError("No GEMINI_API_KEY or GEMINI_API_KEYS found in environment.")
+
+        self.keys = all_keys
+        self.exhausted_keys = set()
+        self.index = 0
+        logger.info("Initialized Gemini KeyManager with %d API key(s).", len(self.keys))
+
+    def get_current_key(self) -> str:
+        with self._lock:
+            active_keys = [k for k in self.keys if k not in self.exhausted_keys]
+            if not active_keys:
+                raise RuntimeError("All Gemini API keys have exceeded their monthly spending caps!")
+            return active_keys[self.index % len(active_keys)]
+
+    def rotate_key(self) -> str:
+        with self._lock:
+            active_keys = [k for k in self.keys if k not in self.exhausted_keys]
+            if not active_keys:
+                raise RuntimeError("All Gemini API keys have exceeded their monthly spending caps!")
+            self.index = (self.index + 1) % len(active_keys)
+            next_key = active_keys[self.index]
+            logger.info("Rotated to active Gemini API key #%d/%d (ends in ...%s)", self.index + 1, len(active_keys), next_key[-6:])
+            return next_key
+
+    def mark_exhausted(self, key: str):
+        with self._lock:
+            if key not in self.exhausted_keys:
+                self.exhausted_keys.add(key)
+                logger.warning("Permanently disabled exhausted key (ends in ...%s). %d active key(s) remaining.", key[-6:], len(self.keys) - len(self.exhausted_keys))
+
+
+_key_manager = None
+
+
+def _get_key_manager() -> KeyManager:
+    global _key_manager
+    if _key_manager is None:
+        _key_manager = KeyManager()
+    return _key_manager
 
 
 def embed_texts(
@@ -50,21 +82,13 @@ def embed_texts(
     output_dimensionality: Optional[int] = EMBEDDING_DIM,
 ) -> list:
     """
-    Generate Gemini embeddings for a list of raw text strings.
-
-    Args:
-        texts     : List of strings to embed.
-        model     : Gemini embedding model name.
-        task_type : One of RETRIEVAL_DOCUMENT, RETRIEVAL_QUERY, SEMANTIC_SIMILARITY.
-                    Use RETRIEVAL_DOCUMENT when ingesting; RETRIEVAL_QUERY when searching.
-
-    Returns:
-        List of embedding vectors (each a list of 768 floats).
+    Generate Gemini embeddings for a list of raw text strings using multi-key rotation.
     """
+    texts = [t.strip() for t in texts if t and isinstance(t, str) and t.strip()]
     if not texts:
         return []
 
-    _configure_genai()
+    km = _get_key_manager()
     all_embeddings = []
 
     for i in range(0, len(texts), BATCH_SIZE):
@@ -73,36 +97,43 @@ def embed_texts(
             "Embedding batch %d-%d / %d ...",
             i + 1, min(i + BATCH_SIZE, len(texts)), len(texts),
         )
-        try:
-            result = genai.embed_content(
-                model=model,
-                content=batch,
-                task_type=task_type,
-                output_dimensionality=output_dimensionality,
-            )
-            # result["embedding"] is a list of vectors when content is a list
-            vectors = result["embedding"]
-            all_embeddings.extend(vectors)
+        
+        attempts = 0
+        max_attempts = 15
 
-            if i + BATCH_SIZE < len(texts):
-                time.sleep(RATE_LIMIT_SLEEP)
-
-        except Exception as exc:
-            error_str = str(exc).lower()
-            if "quota" in error_str or "rate" in error_str or "429" in error_str:
-                logger.warning("Rate limit hit — sleeping 60 s before retrying ...")
-                time.sleep(60)
-                # Retry this batch once
+        while attempts < max_attempts:
+            current_key = km.rotate_key()
+            genai.configure(api_key=current_key)
+            try:
                 result = genai.embed_content(
                     model=model,
                     content=batch,
                     task_type=task_type,
                     output_dimensionality=output_dimensionality,
                 )
-                all_embeddings.extend(result["embedding"])
-            else:
-                logger.error("Gemini embedding error: %s", exc)
-                raise
+                vectors = result["embedding"]
+                all_embeddings.extend(vectors)
+                time.sleep(4.0)
+                break
+            except Exception as exc:
+                attempts += 1
+                error_str = str(exc).lower()
+                if "spend" in error_str or "monthly" in error_str:
+                    logger.warning("Key (ends in ...%s) exceeded monthly spend cap. Removing from pool...", current_key[-6:])
+                    km.mark_exhausted(current_key)
+                    time.sleep(1.0)
+                elif any(term in error_str for term in ["quota", "rate", "429", "resourceexhausted"]):
+                    logger.warning(
+                        "Per-minute rate limit hit on key (ends in ...%s). Rotating & sleeping 10s (attempt %d/%d)...",
+                        current_key[-6:],
+                        attempts,
+                        max_attempts
+                    )
+                    km.rotate_key()
+                    time.sleep(10.0)
+                else:
+                    logger.error("Gemini embedding error: %s", exc)
+                    raise
 
     logger.info("Generated %d embedding(s).", len(all_embeddings))
     return all_embeddings
@@ -116,14 +147,6 @@ def embed_chunks(
 ) -> list:
     """
     Add an 'embedding' field to each chunk dict in-place.
-
-    Args:
-        chunks    : List of chunk dicts (must have a 'text' key).
-        model     : Gemini embedding model name.
-        task_type : Embedding task type.
-
-    Returns:
-        The same list with each dict enriched with an 'embedding' key.
     """
     texts = [c["text"] for c in chunks]
     vectors = embed_texts(
