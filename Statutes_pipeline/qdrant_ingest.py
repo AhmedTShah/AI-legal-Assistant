@@ -19,6 +19,15 @@ from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 from qdrant_client.models import PointStruct
 
+# Override DNS resolution for Qdrant Cloud to bypass local DNS issues
+import socket
+_original_getaddrinfo = socket.getaddrinfo
+def _custom_getaddrinfo(host, port, *args, **kwargs):
+    if host == "1f03f5d6-5fc1-441c-9c39-ab06f32a88f9.eu-central-1-0.aws.cloud.qdrant.io":
+        return _original_getaddrinfo("3.126.6.235", port, *args, **kwargs)
+    return _original_getaddrinfo(host, port, *args, **kwargs)
+socket.getaddrinfo = _custom_getaddrinfo
+
 # Add Statutes_pipeline directory and parent directory to sys.path to import modules
 sys.path.append(str(Path(__file__).resolve().parent))
 sys.path.append(str(Path(__file__).resolve().parent.parent))
@@ -64,54 +73,70 @@ def _get_qdrant_client():
     return client, STATUTES_COLLECTION
 
 
-def _generate_embeddings(texts: List[str]) -> List[List[float]]:
+def _generate_batch_embeddings(batch_texts: List[str]) -> List[List[float]]:
+    """Generate embeddings for a batch of texts using a single Gemini API key.
+    Retries with exponential backoff on 429 / transient errors."""
     import google.generativeai as genai
-    from google.api_core.exceptions import ResourceExhausted, GoogleAPICallError
+    from google.api_core.exceptions import ResourceExhausted, GoogleAPICallError, DeadlineExceeded, ServiceUnavailable
+    import re
 
     gemini_key = os.getenv("GEMINI_API_KEY")
     if not gemini_key:
         print("❌ Error: GEMINI_API_KEY environment variable is not set!")
         sys.exit(1)
 
-    genai.configure(api_key=gemini_key)
+    # Use only the first key if multiple are present
+    api_key = gemini_key.split(",")[0].strip()
+    genai.configure(api_key=api_key)
+
+    max_retries = 10
+    for attempt in range(1, max_retries + 1):
+        try:
+            # Truncate each text to max 8000 characters (~2000 tokens) to stay within Gemini limits
+            # and prevent Token-Per-Minute (TPM) quota exhaustion.
+            safe_texts = [t[:8000] for t in batch_texts]
+            result = genai.embed_content(
+                model=EMBEDDING_MODEL,
+                content=safe_texts,
+                output_dimensionality=VECTOR_SIZE,
+            )
+            return result["embedding"]
+        except (ResourceExhausted, GoogleAPICallError, DeadlineExceeded, ServiceUnavailable) as e:
+            err_str = str(e)
+            is_429 = "429" in err_str or "quota" in err_str.lower()
+
+            if is_429:
+                # Parse retry delay from Google's response, default 60s
+                retry_delay = 60.0
+                match = re.search(r"retry in ([\d\.]+)s", err_str, re.IGNORECASE)
+                if match:
+                    retry_delay = float(match.group(1))
+                print(f"  ⏳ 429 Rate limited (attempt {attempt}/{max_retries}). Waiting {retry_delay:.0f}s...")
+                time.sleep(retry_delay)
+            else:
+                backoff = min(5 * attempt, 30)
+                print(f"  ⚠️ API error (attempt {attempt}/{max_retries}): {err_str[:100]}. Retrying in {backoff}s...")
+                time.sleep(backoff)
+
+            if attempt == max_retries:
+                print("  ❌ Max retries reached. Giving up on this batch.")
+                raise e
+        except Exception as e:
+            print(f"  ❌ Unexpected error: {e}")
+            raise e
+
+
+def _generate_embeddings(texts: List[str]) -> List[List[float]]:
+    """Generate embeddings for a list of texts, splitting into batches."""
     all_emb: List[List[float]] = []
     total = (len(texts) - 1) // BATCH_SIZE + 1
 
     for i in range(0, len(texts), BATCH_SIZE):
-        batch  = texts[i: i + BATCH_SIZE]
-        
-        # Retry loop for embedding generation
-        success = False
-        attempt = 0
-        while not success:
-            try:
-                result = genai.embed_content(
-                    model                = EMBEDDING_MODEL,
-                    content              = batch,
-                    output_dimensionality= VECTOR_SIZE,
-                )
-                all_emb.extend(result["embedding"])
-                success = True
-                if i + BATCH_SIZE < len(texts):
-                    time.sleep(4.1)  # Respect the 15 RPM free tier limit (1 request per 4 seconds)
-            except (ResourceExhausted, GoogleAPICallError) as e:
-                attempt += 1
-                if (hasattr(e, "code") and e.code == 429) or "429" in str(e) or "quota" in str(e).lower():
-                    sleep_time = min(60, 5 * (2 ** attempt))
-                    print(f"⚠️ Rate limit (429) hit on batch {i // BATCH_SIZE + 1}/{total}. Retrying in {sleep_time}s... (Attempt {attempt})")
-                    time.sleep(sleep_time)
-                else:
-                    print(f"❌ API Error during embedding generation: {e}")
-                    raise e
-            except Exception as e:
-                print(f"❌ Unexpected error during embedding generation: {e}")
-                raise e
-
-        print(
-            f"  Embedding batch "
-            f"{i // BATCH_SIZE + 1}/{total} ({len(batch)} texts)"
-        )
-        time.sleep(1)  # Brief 1-second delay between batches to avoid rate limit spikes
+        batch = texts[i: i + BATCH_SIZE]
+        batch_num = i // BATCH_SIZE + 1
+        print(f"  Embedding batch {batch_num}/{total} ({len(batch)} texts)...")
+        emb = _generate_batch_embeddings(batch)
+        all_emb.extend(emb)
 
     return all_emb
 
@@ -269,83 +294,61 @@ def run(
 
     print(f"  Processing {len(chunks)} remaining chunks batch-by-batch...")
 
-    import google.generativeai as genai
-    from google.api_core.exceptions import ResourceExhausted, GoogleAPICallError, DeadlineExceeded, ServiceUnavailable
-
-    gemini_key = os.getenv("GEMINI_API_KEY")
-    if not gemini_key:
-        print("❌ Error: GEMINI_API_KEY environment variable is not set!")
-        sys.exit(1)
-    genai.configure(api_key=gemini_key)
+    # --- Rate-limit-safe settings ---
+    # Gemini free tier: 15 RPM.
+    # Sending 20 texts (max 8k chars each) keeps token count safe and avoids 429.
+    EMBED_BATCH = 20            # texts per batch
+    INTER_REQUEST_DELAY = 3     # seconds between batches
 
     total_chunks = len(chunks)
-    total_batches = (total_chunks - 1) // BATCH_SIZE + 1
+    total_batches = (total_chunks - 1) // EMBED_BATCH + 1
 
-    for i in range(0, total_chunks, BATCH_SIZE):
-        batch_chunks = chunks[i : i + BATCH_SIZE]
+    print(f"\n  Processing {total_chunks} texts in batches of {EMBED_BATCH} (Embed + Upsert live)...")
+
+    from qdrant_client.models import PointStruct
+
+    for b_idx in range(0, total_chunks, EMBED_BATCH):
+        batch_chunks = chunks[b_idx : b_idx + EMBED_BATCH]
         batch_texts = [c.text for c in batch_chunks]
-        batch_num = i // BATCH_SIZE + 1
+        b_num = b_idx // EMBED_BATCH + 1
 
-        print(f"  [{batch_num}/{total_batches}] Generating embeddings for {len(batch_texts)} texts...")
+        print(f"    [{b_num}/{total_batches}] Generating embeddings for {len(batch_texts)} texts...", end=" ", flush=True)
+        batch_emb = _generate_batch_embeddings(batch_texts)
+        print("OK", end=" -> ", flush=True)
 
-        success = False
-        attempt = 0
-        batch_embeddings = []
-        while not success:
-            try:
-                result = genai.embed_content(
-                    model                = EMBEDDING_MODEL,
-                    content              = batch_texts,
-                    output_dimensionality= VECTOR_SIZE,
+        # Prepare points
+        points = []
+        for c, emb in zip(batch_chunks, batch_emb):
+            payload = c.to_qdrant_payload()
+            # Truncate payload text to 10000 characters to prevent database bloat
+            if len(payload.get("text", "")) > 10000:
+                payload["text"] = payload["text"][:10000] + "\n... [TRUNCATED DUE TO SIZE]"
+            points.append(
+                PointStruct(
+                    id      = c.get_point_id(),
+                    vector  = emb,
+                    payload = payload,
                 )
-                batch_embeddings = result["embedding"]
-                success = True
-            except (ResourceExhausted, GoogleAPICallError, DeadlineExceeded, ServiceUnavailable) as e:
-                attempt += 1
-                # 429 Rate limits
-                if (hasattr(e, "code") and e.code == 429) or "429" in str(e) or "quota" in str(e).lower():
-                    sleep_time = min(60, 5 * (2 ** attempt))
-                    print(f"  ⚠️ Google Rate Limit (429) cooldown active. Script is pausing for {sleep_time}s to reset quota before retrying batch {batch_num}/{total_batches} (Attempt {attempt}/5). Please do not cancel...")
-                    time.sleep(sleep_time)
-                # 504 Deadline Exceeded or 503 Service Unavailable
-                elif isinstance(e, (DeadlineExceeded, ServiceUnavailable)) or "504" in str(e) or "deadline" in str(e).lower() or "503" in str(e) or "unavailable" in str(e).lower():
-                    sleep_time = min(60, 5 * (2 ** attempt))
-                    print(f"  ⚠️ Network/Server timeout (504/503). Pausing for {sleep_time}s before retrying batch {batch_num}/{total_batches} (Attempt {attempt}/5). Please do not cancel...")
-                    time.sleep(sleep_time)
-                else:
-                    print(f"  ❌ API Error during embedding generation: {e}")
-                    raise e
-            except Exception as e:
-                print(f"  ❌ Unexpected error during embedding generation: {e}")
-                raise e
-
-        # Upsert this batch to Qdrant immediately
-        from qdrant_client.models import PointStruct
-        points = [
-            PointStruct(
-                id      = c.get_point_id(),
-                vector  = emb,
-                payload = c.to_qdrant_payload(),
             )
-            for c, emb in zip(batch_chunks, batch_embeddings)
-        ]
 
+        # Upsert immediately to Qdrant so it updates LIVE in dashboard
+        print(f"Upserting to Qdrant...", end=" ", flush=True)
         for upsert_attempt in range(1, 4):
             try:
                 client.upsert(collection_name=col, points=points)
-                print(f"  ✅ [{batch_num}/{total_batches}] Upserted {len(points)} points to Qdrant.")
+                print("✅ Done")
                 break
             except Exception as exc:
                 if upsert_attempt < 3:
-                    print(f"    ⚠️ Upsert Retry {upsert_attempt}/3: {exc}")
+                    print(f"⚠️ Retry {upsert_attempt}/3...", end=" ", flush=True)
                     time.sleep(3)
                 else:
-                    print(f"    ❌ Failed to upsert batch {batch_num} to Qdrant.")
+                    print("❌ FAILED")
                     raise exc
 
-        # Respect the 15 RPM limit by sleeping after each successful batch
-        if i + BATCH_SIZE < total_chunks:
-            time.sleep(5.1)
+        # Proactive delay between API calls to stay under RPM limit
+        if b_num < total_batches:
+            time.sleep(INTER_REQUEST_DELAY)
 
     print(f"\n  Done — Ingested all remaining {len(chunks)} chunks into '{col}'.")
 

@@ -2,7 +2,7 @@
 Shared Config for LegalMind Database Pipeline
 ===============================================
 Import these constants in any script:
-    from config import EMBEDDING_MODEL, VECTOR_SIZE, BATCH_SIZE
+    from config import EMBEDDING_MODEL, VECTOR_SIZE, BATCH_SIZE, CHAT_MODEL
 """
 
 import sys
@@ -13,7 +13,7 @@ EMBEDDING_MODEL = "models/gemini-embedding-001"   # Gemini embedding model
 VECTOR_SIZE = 768                                  # Target vector size (Gemini output)
 
 # Generative / Chat Model Config
-CHAT_MODEL = "gemini-2.5-flash"                    # Gemini model for reasoning and response generation
+CHAT_MODEL = "gemini-2.5-flash"                    # Gemini 2.0 Flash for reasoning & agent classification
 
 # Qdrant Collection Names
 STATUTES_COLLECTION   = "statutes"                 # Layer 1: Statutory Laws & Acts
