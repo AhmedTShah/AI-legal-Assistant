@@ -18,7 +18,7 @@ from qdrant_client.http import models as qmodels
 
 sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parent.parent))
 
-from Agents.state import LegalMindState
+from agents.state import LegalMindState
 from config import CHAT_MODEL, EMBEDDING_MODEL, VECTOR_SIZE, STATUTES_COLLECTION
 
 load_dotenv()

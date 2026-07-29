@@ -11,7 +11,7 @@ Each sub-query is routed to a specialist agent:
     - jarah_prep_agent : Prepares cross-examination material
 
 Usage:
-    from Agents.query_decomposer import QueryDecomposer
+    from agents.query_decomposer import QueryDecomposer
 
     decomposer = QueryDecomposer()
     result = decomposer.decompose("Can we get bail for my client arrested under PECA?")
@@ -32,7 +32,7 @@ from typing import Optional
 import google.generativeai as genai
 from dotenv import load_dotenv
 
-from Agents.schemas import DecomposedQuery
+from agents.schemas import DecomposedQuery
 from config import CHAT_MODEL
 
 load_dotenv()
@@ -309,7 +309,7 @@ class QueryDecomposer:
 # LangGraph Node Function
 # ──────────────────────────────────────────────────────────────
 
-from Agents.state import LegalMindState
+from agents.state import LegalMindState
 
 def query_decomposer_node(state: LegalMindState) -> dict:
     """

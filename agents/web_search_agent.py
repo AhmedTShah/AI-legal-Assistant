@@ -11,7 +11,7 @@ import sys
 from typing import List, Dict, Any
 
 sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parent.parent))
-from Agents.state import LegalMindState
+from agents.state import LegalMindState
 
 # Try modern ddgs library first, fallback to duckduckgo_search if needed
 try:

@@ -24,3 +24,6 @@ easyocr>=1.7.2
 
 
 # asyncio is built-in for Python 3.10+ — no install needed
+
+# ── PDF Generation (for formal memos) ──────────────────────────────────────────
+markdown-pdf>=1.13.2

@@ -25,7 +25,7 @@ import google.generativeai as genai
 
 sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parent.parent))
 from config import CHAT_MODEL
-from Agents.state import LegalMindState
+from agents.state import LegalMindState
 
 
 # ──────────────────────────────────────────────────────────────

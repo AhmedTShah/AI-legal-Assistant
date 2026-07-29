@@ -18,7 +18,18 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 
-_SYNTHESIS_PROMPT = """You are the Senior Legal Synthesis Agent for LegalMind — an AI-powered legal assistant for Pakistani lawyers.
+_CHAT_PROMPT = """You are the Senior Legal Synthesis Agent for LegalMind — an AI-powered legal assistant for Pakistani lawyers.
+
+Your job is to provide a QUICK, CONCISE, and CONVERSATIONAL answer to the user's query in a chat interface. 
+You must base your answer strictly on the provided legal contexts (case laws, statutes).
+
+## Instructions:
+1. **Style**: Conversational, direct, and brief. DO NOT write a formal memo.
+2. **Citations**: Mention the court/law briefly inline (e.g., "Under Section 20 PECA..." or "As held by the SCP...").
+3. **No Hallucination**: Do NOT invent laws or cases.
+"""
+
+_MEMO_PROMPT = """You are the Senior Legal Synthesis Agent for LegalMind — an AI-powered legal assistant for Pakistani lawyers.
 
 Your job is to write a comprehensive, professional, and well-structured legal memo answering the user's original query. You must base your answer strictly on the provided legal contexts (case laws, statutes).
 
@@ -32,7 +43,7 @@ Your job is to write a comprehensive, professional, and well-structured legal me
 
 ## Inputs:
 You will receive:
-- The Original User Query
+- The Original User Query (and optionally chat history)
 - Retrieved Contexts (formatted text from Qdrant search results)
 """
 
@@ -85,10 +96,10 @@ class SynthesisAgent:
 
         genai.configure(api_key=working_key)
 
-    def _build_model(self) -> genai.GenerativeModel:
+    def _build_model(self, system_prompt: str) -> genai.GenerativeModel:
         return genai.GenerativeModel(
             model_name=self.model_name,
-            system_instruction=_SYNTHESIS_PROMPT,
+            system_instruction=system_prompt,
             generation_config=genai.GenerationConfig(
                 temperature=0.3,
                 max_output_tokens=4096,
@@ -121,23 +132,63 @@ class SynthesisAgent:
             
         return "\n".join(context_lines)
 
-    def synthesize(self, original_query: str, retrieved_results: List[Dict[str, Any]]) -> str:
+    def chat_response(self, original_query: str, retrieved_results: List[Dict[str, Any]]) -> str:
         """
-        Generates the final legal memo.
+        Generates a quick, conversational response for the chat interface.
         """
-        logger.info("SynthesisAgent generating memo for query: '%s'", original_query)
+        logger.info("SynthesisAgent generating chat response for query: '%s'", original_query)
         context_str = self.format_context(retrieved_results)
         
         prompt = (
             f"USER QUERY:\n{original_query}\n\n"
             f"RETRIEVED CONTEXTS:\n{context_str}\n\n"
-            "Please generate the final legal memo based on the above."
+            "Please provide a concise, conversational answer."
         )
         
-        model = self._build_model()
+        model = self._build_model(_CHAT_PROMPT)
         try:
             response = model.generate_content(prompt)
             return response.text
         except Exception as exc:
-            logger.error("Synthesis generation failed: %s", exc)
-            raise RuntimeError(f"Synthesis failed: {exc}") from exc
+            logger.error("Chat generation failed: %s", exc)
+            raise RuntimeError(f"Chat generation failed: {exc}") from exc
+
+    def generate_memo(self, chat_history_or_query: str, retrieved_results: List[Dict[str, Any]]) -> str:
+        """
+        Generates the formal final legal memo based on the chat history and retrieved context.
+        """
+        logger.info("SynthesisAgent generating formal memo.")
+        context_str = self.format_context(retrieved_results)
+        
+        prompt = (
+            f"USER QUERY / CHAT HISTORY:\n{chat_history_or_query}\n\n"
+            f"RETRIEVED CONTEXTS:\n{context_str}\n\n"
+            "Please generate the formal legal memo based on the above."
+        )
+        
+        model = self._build_model(_MEMO_PROMPT)
+        try:
+            response = model.generate_content(prompt)
+            return response.text
+        except Exception as exc:
+            logger.error("Memo generation failed: %s", exc)
+            raise RuntimeError(f"Memo generation failed: {exc}") from exc
+
+    def generate_memo_pdf(self, chat_history_or_query: str, retrieved_results: List[Dict[str, Any]], output_path: str = "legal_memo.pdf") -> str:
+        """
+        Generates the formal legal memo and saves it directly as a PDF file.
+        Returns the absolute path to the PDF.
+        """
+        markdown_content = self.generate_memo(chat_history_or_query, retrieved_results)
+        
+        # Convert Markdown to PDF
+        try:
+            from markdown_pdf import Section, MarkdownPdf
+            pdf = MarkdownPdf(toc_level=0) # No TOC needed for short memos
+            pdf.add_section(Section(markdown_content))
+            pdf.save(output_path)
+            logger.info("Saved formal memo PDF to: %s", output_path)
+            return os.path.abspath(output_path)
+        except Exception as exc:
+            logger.error("PDF generation failed: %s", exc)
+            raise RuntimeError(f"PDF generation failed: {exc}") from exc
