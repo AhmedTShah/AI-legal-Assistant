@@ -11,7 +11,7 @@ Each sub-query is routed to a specialist agent:
     - jarah_prep_agent : Prepares cross-examination material
 
 Usage:
-    from agents.query_decomposer import QueryDecomposer
+    from Agents.query_decomposer import QueryDecomposer
 
     decomposer = QueryDecomposer()
     result = decomposer.decompose("Can we get bail for my client arrested under PECA?")
@@ -32,7 +32,7 @@ from typing import Optional
 import google.generativeai as genai
 from dotenv import load_dotenv
 
-from agents.schemas import DecomposedQuery
+from Agents.schemas import DecomposedQuery
 from config import CHAT_MODEL
 
 load_dotenv()
@@ -303,3 +303,69 @@ class QueryDecomposer:
         print("=" * 70 + "\n")
 
         return result
+
+
+# ──────────────────────────────────────────────────────────────
+# LangGraph Node Function
+# ──────────────────────────────────────────────────────────────
+
+from Agents.state import LegalMindState
+
+def query_decomposer_node(state: LegalMindState) -> dict:
+    """
+    Query Decomposer Agent Node.
+    Breaks down a complex user query into structured sub-queries using Gemini.
+    """
+    query = state.get("user_query")
+    print(f"\n[Query Decomposer] Decomposing query: '{query}'")
+
+    try:
+        decomposer = QueryDecomposer()
+        result = decomposer.decompose(query)
+
+        # Convert list of SubQuery Pydantic objects to list of dicts for state serialization
+        sub_queries_list = []
+        for sq in result.sub_queries:
+            if hasattr(sq, "model_dump"):
+                sq_dict = sq.model_dump()
+            else:
+                sq_dict = sq.dict()
+            sub_queries_list.append(sq_dict)
+
+        print(f"[Query Decomposer] Created {len(sub_queries_list)} sub-query(ies).")
+        for sq in sub_queries_list:
+            print(f"  - [{sq.get('id')}] Route to: {sq.get('target_agent')} | Query: '{sq.get('query_text')}'")
+
+        return {
+            "detected_language": result.detected_language.value if hasattr(result.detected_language, "value") else str(result.detected_language),
+            "requires_urdu_translation": result.requires_urdu_translation,
+            "primary_legal_issue": result.primary_legal_issue,
+            "jurisdiction": result.jurisdiction,
+            "key_parties": result.key_parties,
+            "statutes_identified": result.statutes_identified,
+            "sub_queries": sub_queries_list,
+            "complexity_score": result.complexity_score,
+            "status": "DECOMPOSITION_COMPLETED"
+        }
+
+    except Exception as e:
+        print(f"[Query Decomposer] ERROR: {e}")
+        # Fallback to a single sub-query if decomposition fails
+        fallback_sub_query = {
+            "id": "SQ-1",
+            "target_agent": "statute_agent", # default fallback agent
+            "query_text": query,
+            "qdrant_filters": {
+                "courts": None,
+                "year_from": None,
+                "year_to": None,
+                "case_type": None,
+                "laws_cited": None
+            },
+            "rationale": f"Decomposition failed with error: {str(e)}"
+        }
+        return {
+            "sub_queries": [fallback_sub_query],
+            "status": "DECOMPOSITION_FAILED_FALLBACK"
+        }
+
