@@ -40,4 +40,6 @@ class LegalMindState(TypedDict):
 
     # AGENT RESPONSES — filled by respective agents
     statute_agent_response:  Optional[str]
+    case_law_agent_response: Optional[str]
+    synthesis_response:      Optional[str]
 

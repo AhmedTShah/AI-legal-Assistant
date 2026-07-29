@@ -103,29 +103,64 @@ export default function App() {
       })
     );
 
-    // 2. Simulate AI Typing response
+    // 2. Fetch AI Response from FastAPI Backend
     setIsTyping(true);
-    setTimeout(() => {
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'ai',
-        content: `I received your query: "${content}". I am reviewing the statutes and precedents database to formulate a comprehensive legal response based on Pakistani Law. (API Integration will execute here).`,
-        timestamp: new Date(),
-      };
+    fetch("http://localhost:8000/api/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ message: content }),
+    })
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error("Failed to communicate with the legal assistant server.");
+        }
+        return res.json();
+      })
+      .then((data) => {
+        const aiMessage: Message = {
+          id: Date.now().toString(),
+          role: 'ai',
+          content: data.response,
+          timestamp: new Date(),
+        };
 
-      setChats((prev) =>
-        prev.map((c) => {
-          if (c.id === activeChatId) {
-            return {
-              ...c,
-              messages: [...c.messages, aiMessage],
-            };
-          }
-          return c;
-        })
-      );
-      setIsTyping(false);
-    }, 1500);
+        setChats((prev) =>
+          prev.map((c) => {
+            if (c.id === activeChatId) {
+              return {
+                ...c,
+                messages: [...c.messages, aiMessage],
+              };
+            }
+            return c;
+          })
+        );
+      })
+      .catch((error) => {
+        const errorMessage: Message = {
+          id: Date.now().toString(),
+          role: 'ai',
+          content: `Error: ${error.message || "Failed to reach the backend server. Please make sure the FastAPI server is running."}`,
+          timestamp: new Date(),
+        };
+
+        setChats((prev) =>
+          prev.map((c) => {
+            if (c.id === activeChatId) {
+              return {
+                ...c,
+                messages: [...c.messages, errorMessage],
+              };
+            }
+            return c;
+          })
+        );
+      })
+      .finally(() => {
+        setIsTyping(false);
+      });
   };
 
   const handleUpdateTitle = (newTitle: string) => {

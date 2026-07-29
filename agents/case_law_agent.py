@@ -13,7 +13,7 @@ from typing import List, Dict, Any
 from qdrant_client.http import models as qmodels
 from pipeline.qdrant_client import get_qdrant_client
 from scraper.utils.embedder import embed_texts
-from agents.schemas import SubQuery
+from Agents.schemas import SubQuery
 
 logger = logging.getLogger(__name__)
 
@@ -133,3 +133,48 @@ class CaseLawAgent:
         except Exception as exc:
             logger.error("Qdrant search failed for SubQuery [%s]: %s", sub_query.id, exc)
             return []
+
+
+# ──────────────────────────────────────────────────────────────
+# LangGraph Node Function
+# ──────────────────────────────────────────────────────────────
+
+from Agents.state import LegalMindState
+from Agents.schemas import SubQuery
+
+def case_law_agent_node(state: LegalMindState) -> dict:
+    """
+    LangGraph Node: Case Law Agent.
+    Processes all sub-queries targeted to 'case_law_agent'.
+    """
+    sub_queries = state.get("sub_queries") or []
+    case_law_sub_queries = [sq for sq in sub_queries if sq.get("target_agent") == "case_law_agent"]
+
+    if not case_law_sub_queries:
+        return {}
+
+    print(f"\n[Case Law Agent] Active. Processing {len(case_law_sub_queries)} sub-query(ies)...")
+
+    try:
+        agent = CaseLawAgent()
+    except Exception as e:
+        print(f"[Case Law Agent] Initialization failed: {e}")
+        return {"status": "CASE_LAW_INIT_FAILED"}
+
+    all_retrieved_chunks = []
+    
+    for sq in case_law_sub_queries:
+        query_text = sq.get("query_text")
+        print(f"  - Query: '{query_text}'")
+        try:
+            sq_obj = SubQuery(**sq)
+            results = agent.search(sq_obj)
+            print(f"    -> Retrieved {len(results)} relevant chunk(s).")
+            all_retrieved_chunks.extend(results)
+        except Exception as e:
+            print(f"[Case Law Agent] Error processing sub-query {sq.get('id')}: {e}")
+
+    return {
+        "retrieved_chunks": all_retrieved_chunks,
+        "status": "CASE_LAW_SEARCH_COMPLETED"
+    }

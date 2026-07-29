@@ -10,8 +10,8 @@ Agents:
     - SynthesisAgent  : Synthesizes final legal memos from retrieved precedents.
 """
 
-from agents.query_decomposer import QueryDecomposer
-from agents.case_law_agent import CaseLawAgent
-from agents.synthesis_agent import SynthesisAgent
+from .query_decomposer import QueryDecomposer
+from .case_law_agent import CaseLawAgent
+from .synthesis_agent import SynthesisAgent
 
 __all__ = ["QueryDecomposer", "CaseLawAgent", "SynthesisAgent"]

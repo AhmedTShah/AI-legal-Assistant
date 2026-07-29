@@ -141,3 +141,35 @@ class SynthesisAgent:
         except Exception as exc:
             logger.error("Synthesis generation failed: %s", exc)
             raise RuntimeError(f"Synthesis failed: {exc}") from exc
+
+
+# ──────────────────────────────────────────────────────────────
+# LangGraph Node Function
+# ──────────────────────────────────────────────────────────────
+
+from Agents.state import LegalMindState
+
+def synthesis_agent_node(state: LegalMindState) -> dict:
+    """
+    LangGraph Node: Synthesis Agent.
+    Aggregates all retrieved chunks (from statutes and precedents) and generates
+    the final legally cited response memo.
+    """
+    retrieved_chunks = state.get("retrieved_chunks") or []
+    
+    print(f"\n[Synthesis Agent] Active. Synthesizing {len(retrieved_chunks)} source chunk(s)...")
+
+    try:
+        agent = SynthesisAgent()
+        response_memo = agent.synthesize(state.get("user_query", ""), retrieved_chunks)
+        print("[Synthesis Agent] Final legal memo generated successfully.")
+        return {
+            "synthesis_response": response_memo,
+            "status": "SYNTHESIS_COMPLETED"
+        }
+    except Exception as e:
+        print(f"[Synthesis Agent] Error during synthesis: {e}")
+        return {
+            "synthesis_response": f"Failed to synthesize final legal memo due to error: {str(e)}",
+            "status": "SYNTHESIS_FAILED"
+        }
