@@ -101,7 +101,7 @@ class CaseLawAgent:
         # Build Qdrant filter
         qdrant_filter = self._build_filter(sub_query)
         
-        # Perform search
+        # Perform search with strict filters first
         try:
             search_results = self.client.query_points(
                 collection_name=self.collection_name,
@@ -110,6 +110,17 @@ class CaseLawAgent:
                 limit=top_k,
                 with_payload=True
             )
+            
+            # If 0 results returned and filters were applied, fallback to vector-only similarity search
+            if not search_results.points and qdrant_filter:
+                logger.info("Strict filter search yielded 0 results for SubQuery [%s]. Falling back to vector similarity search...", sub_query.id)
+                search_results = self.client.query_points(
+                    collection_name=self.collection_name,
+                    query=query_vector,
+                    query_filter=None,  # Relax filters
+                    limit=top_k,
+                    with_payload=True
+                )
             
             # Format results
             formatted_results = []
