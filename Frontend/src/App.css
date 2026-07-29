@@ -9,3 +9,48 @@
   overflow: hidden;
   background-color: var(--color-navy); /* Keep navy background so sidebar area overlaps look correct */
 }
+
+/* Split-pane container for the chat and preview */
+.main-content-wrapper {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* PDF Preview Pane */
+.preview-pane {
+  flex: 1;
+  background-color: #fff;
+  border-left: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-pane-header {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  background-color: var(--color-card-bg);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.preview-pane-close {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 4px;
+}
+.preview-pane-close:hover {
+  color: var(--color-text);
+}
+
+.preview-iframe {
+  flex: 1;
+  width: 100%;
+  border: none;
+}

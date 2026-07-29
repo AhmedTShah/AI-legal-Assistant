@@ -22,13 +22,13 @@ from typing import Dict, Any, Callable, List, Optional, Tuple, Literal
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from Agents.state import LegalMindState
-from Agents.intent_router import intent_router_node, route_by_intent
-from Agents.web_search_agent import web_search_node
-from Agents.query_decomposer import query_decomposer_node
-from Agents.statute_agent import statute_agent_node
-from Agents.case_law_agent import case_law_agent_node
-from Agents.synthesis_agent import synthesis_agent_node
+from agents.state import LegalMindState
+from agents.intent_router import intent_router_node, route_by_intent
+from agents.web_search_agent import web_search_node
+from agents.query_decomposer import query_decomposer_node
+from agents.statute_agent import statute_agent_node
+from agents.case_law_agent import case_law_agent_node
+from agents.synthesis_agent import synthesis_agent_node
 
 START = "__START__"
 END = "__END__"

@@ -18,22 +18,30 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 
-_SYNTHESIS_PROMPT = """You are the Senior Legal Synthesis Agent for LegalMind — an AI-powered legal assistant for Pakistani lawyers.
+_CHAT_PROMPT = """You are LegalMind, an AI-powered legal assistant for Pakistani lawyers.
 
-Your job is to write a comprehensive, professional, and well-structured legal memo answering the user's original query. You must base your answer strictly on the provided legal contexts (case laws, statutes).
+Your job is to answer the user's query based strictly on the provided legal contexts (case laws, statutes).
 
 ## Instructions:
-1. **Structure**: Use markdown formatting. Include an Executive Summary, Legal Analysis, and Conclusion.
-2. **Citations**: When referencing a retrieved context, cite it clearly. E.g., "(SCP, 2023 - cybercrime_judgment.pdf)". Use the provided `source_url` as a hyperlink if available.
-3. **Synthesis**: Do not just list the cases. Synthesize the rules established by them and apply them to the user's query.
-4. **Conflicts**: If different courts (e.g., IHC vs LHC) have conflicting views, point them out. Supreme Court (SCP) precedents always override High Court precedents.
-5. **Tone**: Objective, professional, analytical.
-6. **No Hallucination**: Do NOT invent laws or cases. If the provided context is insufficient to fully answer the query, state clearly what is unknown.
+1. **Dynamic Formatting**: 
+   - By default, provide a clear, concise, and conversational answer. Use markdown for readability (bullet points, bold text).
+   - ONLY IF the user explicitly requests a "formal memo", "detailed memorandum", or similar, you must generate a full, structured legal memo including an Executive Summary, Legal Analysis, and Conclusion.
+2. **Citations**: Cite retrieved contexts naturally (e.g., "The Supreme Court noted in 2023...").
+3. **Conflicts**: If different courts have conflicting views, point them out. Supreme Court (SCP) precedents always override High Court precedents.
+4. **No Hallucination**: Do NOT invent laws or cases. If the provided context is insufficient to fully answer the query, state clearly what is unknown.
+"""
 
-## Inputs:
-You will receive:
-- The Original User Query
-- Retrieved Contexts (formatted text from Qdrant search results)
+_MEMO_PROMPT = """You are the Senior Legal Synthesis Agent for LegalMind.
+
+Your job is to write a comprehensive, professional, and well-structured legal memo answering the user's queries based on the provided chat history and legal contexts.
+
+## Instructions:
+1. **Structure**: Use markdown formatting. Include an Executive Summary, Legal Analysis, and Conclusion. Use proper headers (#, ##).
+2. **Citations**: When referencing a retrieved context, cite it clearly. E.g., "(SCP, 2023)". 
+3. **Hyperlinks**: Do NOT provide markdown links to local file paths (e.g. file:///...). Only provide a hyperlink if the source URL is a valid external website starting with http or https. Otherwise, just cite the court, year, and file name in plain text.
+4. **Synthesis**: Synthesize the rules established by the cases and apply them to the user's situation.
+5. **Tone**: Objective, professional, analytical.
+6. **No Hallucination**: Do NOT invent laws or cases.
 """
 
 class SynthesisAgent:
@@ -85,10 +93,10 @@ class SynthesisAgent:
 
         genai.configure(api_key=working_key)
 
-    def _build_model(self) -> genai.GenerativeModel:
+    def _build_model(self, system_instruction: str) -> genai.GenerativeModel:
         return genai.GenerativeModel(
             model_name=self.model_name,
-            system_instruction=_SYNTHESIS_PROMPT,
+            system_instruction=system_instruction,
             generation_config=genai.GenerationConfig(
                 temperature=0.3,
                 max_output_tokens=4096,
@@ -104,16 +112,33 @@ class SynthesisAgent:
 
         context_lines = []
         for idx, res in enumerate(retrieved_results, start=1):
-            court = res.get("court", "Unknown Court")
+            court = res.get("court", res.get("jurisdiction", "Unknown Court/Jurisdiction"))
             year = res.get("year", "Unknown Year")
-            laws = ", ".join(res.get("laws_cited") or [])
-            file_name = res.get("file_name", "Unknown File")
+            
+            # Statutes often use act_name and section_number instead of laws_cited
+            act_name = res.get("act_name")
+            section = res.get("section_number")
+            if act_name and section:
+                laws = f"{act_name}, Sec {section}"
+            else:
+                laws = ", ".join(res.get("laws_cited") or [])
+                
+            # Statutes use source_file instead of file_name
+            file_name = res.get("file_name") or res.get("source_file") or "Unknown File"
             url = res.get("source_url", "")
+            
+            # Fallback to our new local downloads API endpoint if no external URL exists
+            if not url and file_name != "Unknown File":
+                # Ensure the filename is url-encoded (e.g. for spaces)
+                import urllib.parse
+                safe_filename = urllib.parse.quote(file_name)
+                url = f"http://localhost:8000/api/downloads/{safe_filename}"
+
             text = res.get("text", "").strip()
             score = res.get("score", 0.0)
 
             header = f"--- Context {idx} [Score: {score:.3f}] ---"
-            meta = f"Court: {court} | Year: {year} | Laws: {laws} | File: {file_name}"
+            meta = f"Source: {court} | Year: {year} | Laws: {laws} | File: {file_name}"
             if url:
                 meta += f" | URL: {url}"
             
@@ -131,10 +156,10 @@ class SynthesisAgent:
         prompt = (
             f"USER QUERY:\n{original_query}\n\n"
             f"RETRIEVED CONTEXTS:\n{context_str}\n\n"
-            "Please generate the final legal memo based on the above."
+            "Please answer the query based on the retrieved contexts."
         )
         
-        model = self._build_model()
+        model = self._build_model(system_instruction=_CHAT_PROMPT)
         try:
             response = model.generate_content(prompt)
             return response.text
@@ -142,12 +167,47 @@ class SynthesisAgent:
             logger.error("Synthesis generation failed: %s", exc)
             raise RuntimeError(f"Synthesis failed: {exc}") from exc
 
+    def generate_memo_pdf(self, chat_history_str: str, retrieved_results: List[Dict[str, Any]], output_path: str = "legal_memo.pdf") -> str:
+        """
+        Generates the formal legal memo and saves it directly as a PDF file.
+        Returns the absolute path to the PDF.
+        """
+        logger.info("SynthesisAgent generating formal memo PDF.")
+        context_str = self.format_context(retrieved_results)
+        
+        prompt = (
+            f"CHAT HISTORY:\n{chat_history_str}\n\n"
+            f"RETRIEVED CONTEXTS FROM CHAT:\n{context_str}\n\n"
+            "Please generate a highly formal, comprehensive legal memorandum summarizing the legal analysis based on this chat history and the cited context. Use markdown formatting with # and ## headers. Structure it with an Executive Summary, Legal Analysis, and Conclusion."
+        )
+        
+        model = self._build_model(system_instruction=_MEMO_PROMPT)
+        try:
+            response = model.generate_content(prompt)
+            markdown_content = response.text
+        except Exception as exc:
+            logger.error("Memo text generation failed: %s", exc)
+            raise RuntimeError(f"Memo text generation failed: {exc}") from exc
+            
+        # Convert Markdown to PDF
+        try:
+            from markdown_pdf import Section, MarkdownPdf
+            pdf = MarkdownPdf(toc_level=0) # No TOC needed for short memos
+            pdf.add_section(Section(markdown_content))
+            pdf.save(output_path)
+            logger.info("Saved formal memo PDF to: %s", output_path)
+            return os.path.abspath(output_path)
+        except Exception as exc:
+            logger.error("PDF generation failed: %s", exc)
+            raise RuntimeError(f"PDF generation failed: {exc}") from exc
+
+
 
 # ──────────────────────────────────────────────────────────────
 # LangGraph Node Function
 # ──────────────────────────────────────────────────────────────
 
-from Agents.state import LegalMindState
+from agents.state import LegalMindState
 
 def synthesis_agent_node(state: LegalMindState) -> dict:
     """

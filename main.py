@@ -2,16 +2,19 @@ import os
 import sys
 import logging
 from typing import Dict, Any, List, Optional
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
 # Ensure the root directory is in the python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from Agents.graph import app as graph_app
-from Agents.state import LegalMindState
+from agents.graph import app as graph_app
+from agents.state import LegalMindState
+from agents.synthesis_agent import SynthesisAgent
 
 # Load environment variables
 load_dotenv()
@@ -37,9 +40,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Serve downloads directory statically for PDF links
+downloads_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "downloads")
+os.makedirs(downloads_path, exist_ok=True)
+app.mount("/api/downloads", StaticFiles(directory=downloads_path), name="downloads")
+
 # Pydantic Schemas for API Contracts
 class ChatRequest(BaseModel):
     message: str
+
+class ChatHistoryRequest(BaseModel):
+    history: str
+    retrieved_chunks: List[Dict[str, Any]] = []
 
 class CitationItem(BaseModel):
     source: str
@@ -133,6 +145,53 @@ async def chat_endpoint(request: ChatRequest):
         raise HTTPException(
             status_code=500,
             detail=f"An error occurred in the legal pipeline: {str(e)}"
+        )
+
+
+def cleanup_file(path: str):
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except Exception as e:
+        logger.warning(f"Failed to cleanup temp file {path}: {e}")
+
+@app.post("/api/generate_pdf")
+async def generate_pdf_endpoint(request: ChatHistoryRequest, background_tasks: BackgroundTasks):
+    """
+    Takes the full chat history and any accumulated retrieved chunks,
+    synthesizes a formal legal memorandum, and returns it as a downloadable PDF.
+    """
+    logger.info("Received request to generate formal PDF memo.")
+    
+    try:
+        synthesis_agent = SynthesisAgent()
+        # Ensure downloads dir exists
+        downloads_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "downloads")
+        os.makedirs(downloads_dir, exist_ok=True)
+        
+        pdf_path = os.path.join(downloads_dir, f"legal_memo_{os.urandom(4).hex()}.pdf")
+        
+        # Generate the PDF
+        final_path = synthesis_agent.generate_memo_pdf(
+            chat_history_str=request.history,
+            retrieved_results=request.retrieved_chunks,
+            output_path=pdf_path
+        )
+        
+        # Add a background task to delete the file after it's returned to the client
+        background_tasks.add_task(cleanup_file, final_path)
+        
+        return FileResponse(
+            path=final_path, 
+            filename="Formal_Legal_Memo.pdf", 
+            media_type="application/pdf"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error generating PDF memo: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate formal PDF memo: {str(e)}"
         )
 
 

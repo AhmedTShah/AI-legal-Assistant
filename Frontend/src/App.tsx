@@ -52,6 +52,8 @@ export default function App() {
 
   const [activeChatId, setActiveChatId] = useState<string | null>('1');
   const [isTyping, setIsTyping] = useState(false);
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const activeChat = chats.find((c) => c.id === activeChatId) || null;
 
@@ -64,10 +66,47 @@ export default function App() {
     };
     setChats((prev) => [newChat, ...prev]);
     setActiveChatId(newId);
+    setPreviewPdfUrl(null);
   };
 
   const handleSelectChat = (id: string) => {
     setActiveChatId(id);
+    setPreviewPdfUrl(null);
+  };
+
+  const handleGenerateMemo = async () => {
+    if (!activeChat || activeChat.messages.length === 0) return;
+    
+    setIsGeneratingPdf(true);
+    try {
+      // Format chat history into a string for the backend
+      const historyStr = activeChat.messages
+        .map(m => `${m.role.toUpperCase()}:\n${m.content}`)
+        .join('\n\n');
+
+      const response = await fetch("http://localhost:8000/api/generate_pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          history: historyStr,
+          retrieved_chunks: [] // Optionally pass chunks if we track them in state
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to generate PDF memo.");
+      }
+
+      // Read PDF as a blob
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      setPreviewPdfUrl(objectUrl);
+    } catch (error) {
+      console.error("Error generating memo:", error);
+      alert("Error generating PDF memo. Please check the backend server.");
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   const handleSendMessage = (content: string) => {
@@ -177,19 +216,38 @@ export default function App() {
         onNewChat={handleNewChat}
         onSelectChat={handleSelectChat}
       />
-      {activeChat ? (
-        <ChatArea
-          chatTitle={activeChat.title}
-          messages={activeChat.messages}
-          isTyping={isTyping}
-          onSendMessage={handleSendMessage}
-          onUpdateTitle={handleUpdateTitle}
-        />
-      ) : (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}>
-          Select a chat to begin research.
-        </div>
-      )}
+      <div className="main-content-wrapper">
+        {activeChat ? (
+          <ChatArea
+            chatTitle={activeChat.title}
+            messages={activeChat.messages}
+            isTyping={isTyping}
+            isGeneratingPdf={isGeneratingPdf}
+            onSendMessage={handleSendMessage}
+            onUpdateTitle={handleUpdateTitle}
+            onGenerateMemo={handleGenerateMemo}
+          />
+        ) : (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}>
+            Select a chat to begin research.
+          </div>
+        )}
+        
+        {/* PDF Preview Pane */}
+        {previewPdfUrl && (
+          <div className="preview-pane">
+            <div className="preview-pane-header">
+              <span>Formal Legal Memo Preview</span>
+              <button className="preview-pane-close" onClick={() => setPreviewPdfUrl(null)} title="Close Preview">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <iframe className="preview-iframe" src={previewPdfUrl} title="Legal Memo PDF" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

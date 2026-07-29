@@ -13,7 +13,7 @@ from typing import List, Dict, Any
 from qdrant_client.http import models as qmodels
 from pipeline.qdrant_client import get_qdrant_client
 from scraper.utils.embedder import embed_texts
-from Agents.schemas import SubQuery
+from agents.schemas import SubQuery
 
 logger = logging.getLogger(__name__)
 
@@ -150,8 +150,8 @@ class CaseLawAgent:
 # LangGraph Node Function
 # ──────────────────────────────────────────────────────────────
 
-from Agents.state import LegalMindState
-from Agents.schemas import SubQuery
+from agents.state import LegalMindState
+from agents.schemas import SubQuery
 
 def case_law_agent_node(state: LegalMindState) -> dict:
     """
