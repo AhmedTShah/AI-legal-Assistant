@@ -1,0 +1,11 @@
+/* ══════════════════════════════════════════════════════════════
+   App Layout Styles
+   ══════════════════════════════════════════════════════════════ */
+
+.app-container {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--color-navy); /* Keep navy background so sidebar area overlaps look correct */
+}
