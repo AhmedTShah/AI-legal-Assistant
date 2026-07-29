@@ -1,0 +1,237 @@
+/* ══════════════════════════════════════════════════════════════
+   Sidebar Styles — Exact Nomi AI Spec
+   ══════════════════════════════════════════════════════════════ */
+
+.sidebar {
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  height: 100%;
+  background-color: var(--color-navy);
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-2xl) var(--spacing-lg) var(--spacing-lg) var(--spacing-lg);
+  overflow: hidden;
+  border-right: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+/* ── Sidebar Header (Logo + Toggle) ─────────────────────────── */
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-3xl);
+  padding: 0 var(--spacing-sm);
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.sidebar-logo-img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.sidebar-logo-text {
+  font-family: var(--font-family-serif); /* Serif font matching screenshot */
+  font-size: 21px;
+  font-weight: 500;
+  color: var(--color-white);
+  letter-spacing: -0.01em;
+}
+
+.sidebar-toggle-btn {
+  color: rgba(200, 205, 214, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-xs);
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.sidebar-toggle-btn:hover {
+  color: var(--color-white);
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* ── New Chat Button (Clean, Non-colorful, Transparent) ─────── */
+.sidebar-new-chat {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  width: 100%;
+  padding: var(--spacing-md) var(--spacing-lg);
+  background-color: rgba(255, 255, 255, 0.07); /* Transparent white */
+  color: rgba(255, 255, 255, 0.9);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  border-radius: var(--radius-xl); /* Rounded corners */
+  transition: background-color var(--transition-fast), transform var(--transition-fast);
+  margin-bottom: var(--spacing-2xl);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.sidebar-new-chat:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.new-chat-plus {
+  opacity: 0.8;
+}
+
+/* ── Navigation Items (Clean, Monochromatic) ─────────────────── */
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: var(--spacing-3xl);
+}
+
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-md) var(--spacing-lg);
+  color: rgba(200, 205, 214, 0.7);
+  font-size: var(--font-size-base);
+  font-weight: 400;
+  border-radius: var(--radius-xl);
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+
+.sidebar-nav-item:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--color-white);
+}
+
+.sidebar-nav-icon {
+  opacity: 0.6;
+  flex-shrink: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.sidebar-nav-item:hover .sidebar-nav-icon {
+  opacity: 0.9;
+}
+
+/* Library Badge */
+.sidebar-library-badge {
+  margin-left: auto;
+  background-color: var(--color-white);
+  color: var(--color-navy);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+}
+
+/* ── Recent Chats Section ───────────────────────────────────── */
+.sidebar-section-label {
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: rgba(200, 205, 214, 0.4);
+  padding: 0 var(--spacing-lg);
+  margin-bottom: var(--spacing-md);
+}
+
+.sidebar-chats {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: var(--spacing-lg);
+}
+
+.sidebar-chat-item {
+  display: flex;
+  align-items: center;
+  padding: var(--spacing-md) var(--spacing-lg);
+  color: rgba(200, 205, 214, 0.7);
+  font-size: var(--font-size-base);
+  font-weight: 400;
+  border-radius: var(--radius-xl); /* Rounded capsule corners */
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+  width: 100%;
+  text-align: left;
+}
+
+.sidebar-chat-item:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--color-white);
+}
+
+.sidebar-chat-item.active {
+  background-color: rgba(255, 255, 255, 0.08); /* Soft active highlight */
+  color: var(--color-white);
+}
+
+.sidebar-chat-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.sidebar-chat-item-empty {
+  font-size: var(--font-size-sm);
+  color: rgba(200, 205, 214, 0.4);
+  padding: var(--spacing-md) var(--spacing-lg);
+}
+
+/* ── User Profile ───────────────────────────────────────────── */
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg) var(--spacing-sm) 0 var(--spacing-sm);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  margin-top: auto;
+}
+
+.sidebar-user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.sidebar-user-info {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-grow: 1;
+}
+
+.sidebar-user-name {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-notification-btn {
+  color: rgba(200, 205, 214, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-xs);
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast);
+}
+
+.sidebar-notification-btn:hover {
+  color: var(--color-white);
+}

@@ -22,11 +22,13 @@ from typing import Dict, Any, Callable, List, Optional, Tuple, Literal
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from agents.state import LegalMindState
-from agents.intent_router import intent_router_node, route_by_intent
-from agents.web_search_agent import web_search_node
-from agents.query_decomposer import query_decomposer_node
-from agents.statute_agent import statute_agent_node
+from Agents.state import LegalMindState
+from Agents.intent_router import intent_router_node, route_by_intent
+from Agents.web_search_agent import web_search_node
+from Agents.query_decomposer import query_decomposer_node
+from Agents.statute_agent import statute_agent_node
+from Agents.case_law_agent import case_law_agent_node
+from Agents.synthesis_agent import synthesis_agent_node
 
 START = "__START__"
 END = "__END__"
@@ -137,29 +139,6 @@ except Exception:
 
 
 # ──────────────────────────────────────────────────────────────
-# PLACEHOLDER NODES & INTERNAL ROUTERS
-# ──────────────────────────────────────────────────────────────
-
-def case_law_agent_node(state: LegalMindState) -> dict:
-    """Placeholder Node for Case Law Agent (searches judgments)."""
-    print("\n[Case Law Agent Placeholder] Received query for Case Law search.")
-    return {"status": "CASE_LAW_SEARCH_PLACEHOLDER"}
-
-
-def route_internal_queries(state: LegalMindState) -> str:
-    """
-    Conditional router. Routes the query to statute_agent or case_law_agent
-    based on the target_agent fields in the sub-queries.
-    """
-    sub_queries = state.get("sub_queries") or []
-    for sq in sub_queries:
-        target = sq.get("target_agent")
-        if target == "case_law_agent":
-            return "case_law_agent"
-    return "statute_agent"
-
-
-# ──────────────────────────────────────────────────────────────
 # GRAPH CONSTRUCTION
 # ──────────────────────────────────────────────────────────────
 
@@ -172,12 +151,13 @@ def build_legalmind_graph():
     """
     builder = StateGraph(LegalMindState)
 
-    # 1. Add Active & Placeholder Nodes
+    # 1. Add Active Specialist & Synthesizer Nodes
     builder.add_node("intent_router", intent_router_node)
     builder.add_node("web_search", web_search_node)
     builder.add_node("query_decomposer", query_decomposer_node)
     builder.add_node("statute_agent", statute_agent_node)
     builder.add_node("case_law_agent", case_law_agent_node)
+    builder.add_node("synthesis_agent", synthesis_agent_node)
 
     # 2. Add Entry Point Edge (START -> intent_router)
     builder.add_edge(START, "intent_router")
@@ -192,20 +172,14 @@ def build_legalmind_graph():
         }
     )
 
-    # 4. Add Conditional Edge after query_decomposer to route to specialist agents
-    builder.add_conditional_edges(
-        "query_decomposer",
-        route_internal_queries,
-        {
-            "statute_agent": "statute_agent",
-            "case_law_agent": "case_law_agent"
-        }
-    )
+    # 4. Sequential Specialist Pipelines to Synthesis
+    builder.add_edge("query_decomposer", "statute_agent")
+    builder.add_edge("statute_agent", "case_law_agent")
+    builder.add_edge("case_law_agent", "synthesis_agent")
 
-    # 5. Add Terminal Edges
+    # 5. Terminal Edges to END
     builder.add_edge("web_search", END)
-    builder.add_edge("statute_agent", END)
-    builder.add_edge("case_law_agent", END)
+    builder.add_edge("synthesis_agent", END)
 
     # 6. Compile Graph
     app = builder.compile()

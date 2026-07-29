@@ -1,0 +1,132 @@
+/* ══════════════════════════════════════════════════════════════
+   ChatInput Styles — Exact Nomi AI Spec
+   ══════════════════════════════════════════════════════════════ */
+
+.chat-input-wrapper {
+  padding: var(--spacing-xl) var(--spacing-3xl) var(--spacing-xl) var(--spacing-3xl);
+  background-color: var(--color-white);
+}
+
+.chat-input-container {
+  display: flex;
+  flex-direction: column;
+  background-color: #f1f1f2; /* Soft grey background matching Nomi AI */
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-md) var(--spacing-md) var(--spacing-sm) var(--spacing-lg);
+  transition: box-shadow var(--transition-fast), background-color var(--transition-fast);
+}
+
+.chat-input-container:focus-within {
+  background-color: #ebebeb;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+.chat-input-field {
+  width: 100%;
+  resize: none;
+  min-height: 28px;
+  max-height: 120px;
+  padding: var(--spacing-xs) 0;
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
+  line-height: 1.5;
+  background: none;
+  border: none;
+  outline: none;
+}
+
+.chat-input-field::placeholder {
+  color: rgba(0, 0, 0, 0.4);
+}
+
+/* ── Bottom Bar inside the capsule ──────────────────────────── */
+.chat-input-bottom-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--spacing-sm);
+  padding-bottom: 2px;
+}
+
+.chat-input-chips-inline {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: 6px var(--spacing-md);
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.8);
+  background-color: rgba(0, 0, 0, 0.04); /* Soft grey background */
+  border-radius: var(--radius-full);
+  transition: background-color var(--transition-fast), transform var(--transition-fast);
+  border: none;
+  cursor: pointer;
+}
+
+.chip:hover {
+  background-color: rgba(0, 0, 0, 0.07);
+}
+
+.chip-svg {
+  color: #eb5e46; /* Coral orange icon color matching Nomi AI spec */
+  flex-shrink: 0;
+}
+
+.chip-add-inline {
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background-color: rgba(0, 0, 0, 0.04);
+  color: rgba(0, 0, 0, 0.6);
+  transition: background-color var(--transition-fast);
+}
+
+.chip-add-inline:hover {
+  background-color: rgba(0, 0, 0, 0.07);
+  color: rgba(0, 0, 0, 0.8);
+}
+
+/* ── Send/Waveform Circle Button (Dark Grey Capsule style) ───── */
+.chat-input-send-circle {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  border-radius: var(--radius-full);
+  background-color: #3b3b3d; /* Dark grey/navy circle */
+  color: var(--color-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color var(--transition-fast), transform var(--transition-fast), opacity var(--transition-fast);
+  border: none;
+  cursor: pointer;
+}
+
+.chat-input-send-circle:hover:not(:disabled) {
+  background-color: #272729;
+  transform: scale(1.05);
+}
+
+.chat-input-send-circle:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.chat-input-send-circle:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.waveform-svg {
+  opacity: 0.95;
+}
