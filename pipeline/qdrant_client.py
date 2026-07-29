@@ -100,17 +100,27 @@ def ensure_collections(client: QdrantClient) -> None:
         )
         logger.info("Collection '%s' created (size=%d, metric=COSINE).", name, config["vector_size"])
 
-    # Ensure payload index on file_name exists for all collections
+    # Ensure payload indexes exist for filtering fields
+    indexes = {
+        "file_name": qmodels.PayloadSchemaType.KEYWORD,
+        "court": qmodels.PayloadSchemaType.KEYWORD,
+        "year": qmodels.PayloadSchemaType.INTEGER,
+        "case_type": qmodels.PayloadSchemaType.KEYWORD,
+        "laws_cited": qmodels.PayloadSchemaType.KEYWORD
+    }
+    
     for name in COLLECTIONS.keys():
-        try:
-            logger.info("Ensuring payload index on '%s.file_name' exists...", name)
-            client.create_payload_index(
-                collection_name=name,
-                field_name="file_name",
-                field_schema=qmodels.PayloadSchemaType.KEYWORD
-            )
-        except Exception as exc:
-            logger.warning("Could not create payload index on %s.file_name: %s", name, exc)
+        for field, schema in indexes.items():
+            try:
+                logger.info("Ensuring payload index on '%s.%s' exists...", name, field)
+                client.create_payload_index(
+                    collection_name=name,
+                    field_name=field,
+                    field_schema=schema
+                )
+            except Exception as exc:
+                # Sometimes fails if index already exists
+                logger.debug("Index creation issue on %s.%s: %s", name, field, exc)
 
     logger.info("Collection bootstrap complete.")
 
