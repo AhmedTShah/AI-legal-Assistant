@@ -14,6 +14,9 @@ class LegalMindState(TypedDict):
 
     # INPUT — filled at pipeline start
     user_query:              str
+    user_id:                 Optional[str]
+    session_id:              Optional[str]
+    case_ref:                Optional[str]
 
     # INTENT ROUTER NODE — fills these
     intent:                  Optional[str]        # "INTERNAL" or "EXTERNAL"

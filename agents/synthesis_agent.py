@@ -219,9 +219,22 @@ def synthesis_agent_node(state: LegalMindState) -> dict:
     
     print(f"\n[Synthesis Agent] Active. Synthesizing {len(retrieved_chunks)} source chunk(s)...")
 
+    user_id = state.get("user_id")
+    session_id = state.get("session_id")
+    case_ref = state.get("case_ref")
+    query = state.get("user_query", "")
+
+    if user_id and session_id:
+        try:
+            from database.memory import assemble_prompt
+            query = assemble_prompt(user_id, session_id, case_ref, query)
+            print("[Synthesis Agent] Assembled prompt with long-term memory & short-term summary contexts.")
+        except Exception as e:
+            print(f"[Synthesis Agent] Warning: Failed to assemble prompt memory contexts: {e}")
+
     try:
         agent = SynthesisAgent()
-        response_memo = agent.synthesize(state.get("user_query", ""), retrieved_chunks)
+        response_memo = agent.synthesize(query, retrieved_chunks)
         print("[Synthesis Agent] Final legal memo generated successfully.")
         return {
             "synthesis_response": response_memo,
