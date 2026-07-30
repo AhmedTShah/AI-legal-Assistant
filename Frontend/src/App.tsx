@@ -8,6 +8,7 @@ interface Chat {
   id: string;
   title: string;
   messages: Message[];
+  retrievedChunks?: any[];
 }
 
 export default function App() {
@@ -89,7 +90,7 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           history: historyStr,
-          retrieved_chunks: [] // Optionally pass chunks if we track them in state
+          retrieved_chunks: activeChat.retrievedChunks || []
         }),
       });
 
@@ -168,9 +169,12 @@ export default function App() {
         setChats((prev) =>
           prev.map((c) => {
             if (c.id === activeChatId) {
+              const existingChunks = c.retrievedChunks || [];
+              const newChunks = data.retrieved_chunks || [];
               return {
                 ...c,
                 messages: [...c.messages, aiMessage],
+                retrievedChunks: [...existingChunks, ...newChunks]
               };
             }
             return c;

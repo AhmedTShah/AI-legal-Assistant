@@ -161,20 +161,39 @@ async def generate_pdf_endpoint(request: ChatHistoryRequest, background_tasks: B
     Takes the full chat history and any accumulated retrieved chunks,
     synthesizes a formal legal memorandum, and returns it as a downloadable PDF.
     """
-    logger.info("Received request to generate formal PDF memo.")
-    
     try:
         synthesis_agent = SynthesisAgent()
-        # Ensure downloads dir exists
         downloads_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "downloads")
         os.makedirs(downloads_dir, exist_ok=True)
-        
         pdf_path = os.path.join(downloads_dir, f"legal_memo_{os.urandom(4).hex()}.pdf")
         
+        # If retrieved_chunks is empty, auto-retrieve using the last user message in history
+        retrieved_chunks = request.retrieved_chunks
+        if not retrieved_chunks and request.history:
+            lines = request.history.split("\n\n")
+            last_query = ""
+            for block in reversed(lines):
+                if block.startswith("USER:"):
+                    last_query = block.replace("USER:", "").strip()
+                    break
+            if last_query:
+                logger.info(f"Auto-retrieving context for PDF generation using query: '{last_query}'")
+                try:
+                    initial_state: LegalMindState = {
+                        "user_query": last_query,
+                        "web_search_results": [],
+                        "retrieved_chunks": [],
+                        "verified_citations": [],
+                    }
+                    final_state = graph_app.invoke(initial_state)
+                    retrieved_chunks = final_state.get("retrieved_chunks") or []
+                except Exception as exc:
+                    logger.warning(f"Failed auto-retrieval for PDF: {exc}")
+
         # Generate the PDF
         final_path = synthesis_agent.generate_memo_pdf(
             chat_history_str=request.history,
-            retrieved_results=request.retrieved_chunks,
+            retrieved_results=retrieved_chunks,
             output_path=pdf_path
         )
         
