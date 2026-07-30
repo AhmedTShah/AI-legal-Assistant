@@ -266,6 +266,7 @@ export default function App() {
             onSendMessage={handleSendMessage}
             onUpdateTitle={handleUpdateTitle}
             onGenerateMemo={handleGenerateMemo}
+            onLinkClick={(url) => setPreviewPdfUrl(url)}
           />
         ) : (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}>

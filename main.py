@@ -46,6 +46,11 @@ downloads_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "downl
 os.makedirs(downloads_path, exist_ok=True)
 app.mount("/api/downloads", StaticFiles(directory=downloads_path), name="downloads")
 
+# Serve statutes directory statically for PDF links
+statutes_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Statutes_pipeline", "statutes")
+os.makedirs(statutes_path, exist_ok=True)
+app.mount("/api/statutes", StaticFiles(directory=statutes_path), name="statutes")
+
 # Pydantic Schemas for API Contracts
 class ChatRequest(BaseModel):
     message: str

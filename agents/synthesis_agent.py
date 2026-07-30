@@ -26,7 +26,16 @@ Your job is to answer the user's query based strictly on the provided legal cont
 1. **Dynamic Formatting**: 
    - By default, provide a clear, concise, and conversational answer. Use markdown for readability (bullet points, bold text).
    - ONLY IF the user explicitly requests a "formal memo", "detailed memorandum", or similar, you must generate a full, structured legal memo including an Executive Summary, Legal Analysis, and Conclusion.
-2. **Citations**: Cite retrieved contexts naturally (e.g., "The Supreme Court noted in 2023...").
+2. **Citations & Document Links**: 
+   - Do NOT insert inline links inside paragraphs or sentences (e.g. do not write "Under [PPC](url)...").
+   - Instead, if a paragraph mentions a statute, section, or case (e.g. PPC, CrPC, etc.) that has a local URL, append a citation badge at the very end of that paragraph (or on a new line right below it) in this exact format:
+     `\n📌 [Document Name](URL)`
+     For example:
+     ```
+     Under the Pakistan Penal Code, 1860, offenses related to negligent or rash acts are typically addressed under Section 279.
+     📌 [Pakistan Penal Code, 1860](http://localhost:8000/api/statutes/PPC.pdf)
+     ```
+   - If no URL is present in the context, cite it as plain text without any markdown links.
 3. **Conflicts**: If different courts have conflicting views, point them out. Supreme Court (SCP) precedents always override High Court precedents.
 4. **No Hallucination**: Do NOT invent laws or cases. If the provided context is insufficient to fully answer the query, state clearly what is unknown.
 """
@@ -37,11 +46,19 @@ Your job is to write a comprehensive, professional, and well-structured legal me
 
 ## Instructions:
 1. **Structure**: Use markdown formatting. Include an Executive Summary, Legal Analysis, and Conclusion. Use proper headers (#, ##).
-2. **Citations**: When referencing a retrieved context, cite it clearly. E.g., "(SCP, 2023)". 
-3. **Hyperlinks**: Do NOT provide markdown links to local file paths (e.g. file:///...). Only provide a hyperlink if the source URL is a valid external website starting with http or https. Otherwise, just cite the court, year, and file name in plain text.
-4. **Synthesis**: Synthesize the rules established by the cases and apply them to the user's situation.
-5. **Tone**: Objective, professional, analytical.
-6. **No Hallucination**: Do NOT invent laws or cases.
+2. **Citations & Document Links**: 
+   - Do NOT insert inline links inside paragraphs or sentences.
+   - Instead, if a paragraph mentions a statute, section, or case (e.g. PPC, CrPC, etc.) that has a local URL, append a citation badge at the very end of that paragraph (or on a new line right below it) in this exact format:
+     `\n📌 [Document Name](URL)`
+     For example:
+     ```
+     Under the Pakistan Penal Code, 1860, offenses related to negligent or rash acts are typically addressed under Section 279.
+     📌 [Pakistan Penal Code, 1860](http://localhost:8000/api/statutes/PPC.pdf)
+     ```
+   - If no URL is present in the context, cite it as plain text without any markdown links.
+3. **Synthesis**: Synthesize the rules established by the cases and apply them to the user's situation.
+4. **Tone**: Objective, professional, analytical.
+5. **No Hallucination**: Do NOT invent laws or cases.
 """
 
 class SynthesisAgent:
@@ -127,12 +144,16 @@ class SynthesisAgent:
             file_name = res.get("file_name") or res.get("source_file") or "Unknown File"
             url = res.get("source_url", "")
             
-            # Fallback to our new local downloads API endpoint if no external URL exists
+            # Fallback to our local endpoints if no external URL exists
             if not url and file_name != "Unknown File":
                 # Ensure the filename is url-encoded (e.g. for spaces)
                 import urllib.parse
                 safe_filename = urllib.parse.quote(file_name)
-                url = f"http://localhost:8000/api/downloads/{safe_filename}"
+                # Check if file exists in Statutes_pipeline/statutes directory
+                base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                local_statute_path = os.path.join(base_dir, "Statutes_pipeline", "statutes", file_name)
+                if os.path.exists(local_statute_path):
+                    url = f"http://localhost:8000/api/statutes/{safe_filename}"
 
             text = res.get("text", "").strip()
             score = res.get("score", 0.0)

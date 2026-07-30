@@ -140,3 +140,38 @@
   line-height: 1.6;
 }
 
+.markdown-link {
+  color: var(--color-gold, #cca658);
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 500;
+  transition: color var(--transition-fast, 0.2s);
+}
+
+.markdown-link:hover {
+  color: #e5bf71;
+}
+
+.markdown-link-preview {
+  display: inline-flex;
+  align-items: center;
+  background-color: rgba(204, 166, 88, 0.08);
+  color: var(--color-gold, #cca658);
+  border: 1px solid rgba(204, 166, 88, 0.25);
+  padding: 3px 8px;
+  border-radius: var(--radius-sm, 4px);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.9em;
+  margin: 2px 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.markdown-link-preview:hover {
+  background-color: rgba(204, 166, 88, 0.18);
+  color: #e5bf71;
+  border-color: rgba(204, 166, 88, 0.5);
+  text-decoration: none;
+}
+

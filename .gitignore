@@ -2,8 +2,6 @@
 .env
 
 # ── Downloaded court judgment PDFs & Statutes ──────────────────────────────────
-/downloads/
-/Statutes_pipeline/statutes/
 *.pdf
 
 # ── User-uploaded case documents ──────────────────────────────────────────────

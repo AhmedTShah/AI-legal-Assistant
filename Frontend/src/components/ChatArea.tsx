@@ -12,6 +12,7 @@ interface ChatAreaProps {
   onSendMessage: (message: string) => void;
   onUpdateTitle: (title: string) => void;
   onGenerateMemo?: () => void;
+  onLinkClick?: (url: string) => void;
 }
 
 export default function ChatArea({
@@ -22,6 +23,7 @@ export default function ChatArea({
   onSendMessage,
   onUpdateTitle,
   onGenerateMemo,
+  onLinkClick,
 }: ChatAreaProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -94,7 +96,7 @@ export default function ChatArea({
             </p>
           </div>
         ) : (
-          messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)
+          messages.map((msg) => <MessageBubble key={msg.id} message={msg} onLinkClick={onLinkClick} />)
         )}
         {isTyping && <TypingIndicator />}
         <div ref={messagesEndRef} />
