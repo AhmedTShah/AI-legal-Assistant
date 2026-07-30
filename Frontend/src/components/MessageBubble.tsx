@@ -12,6 +12,63 @@ interface MessageBubbleProps {
   message: Message;
 }
 
+const parseMarkdown = (text: string) => {
+  const lines = text.split('\n');
+  const elements: React.ReactNode[] = [];
+  let inList = false;
+  let listItems: React.ReactNode[] = [];
+
+  const parseInline = (inlineText: string): React.ReactNode[] => {
+    // Split by markdown bold tags **text**
+    const parts = inlineText.split(/(\*\*[^*]+\*\*)/g);
+    return parts.map((part, index) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={index}>{part.slice(2, -2)}</strong>;
+      }
+      return part;
+    });
+  };
+
+  lines.forEach((line, index) => {
+    const trimmed = line.trim();
+    
+    // Check if it's a bullet point (starts with * or -)
+    if (trimmed.startsWith('*') || trimmed.startsWith('-')) {
+      const content = trimmed.substring(1).trim();
+      inList = true;
+      listItems.push(<li key={`li-${index}`}>{parseInline(content)}</li>);
+    } else {
+      // If we were in a list, close it first
+      if (inList) {
+        elements.push(
+          <ul key={`ul-${index}`} className="message-list">
+            {listItems}
+          </ul>
+        );
+        listItems = [];
+        inList = false;
+      }
+      
+      if (trimmed === '') {
+        elements.push(<div key={`space-${index}`} className="message-paragraph-space" />);
+      } else {
+        elements.push(<p key={`p-${index}`} className="message-paragraph">{parseInline(line)}</p>);
+      }
+    }
+  });
+
+  // Close any remaining list
+  if (inList) {
+    elements.push(
+      <ul key="ul-final" className="message-list">
+        {listItems}
+      </ul>
+    );
+  }
+
+  return elements;
+};
+
 export default function MessageBubble({ message }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const isUser = message.role === 'user';
@@ -29,7 +86,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
   return (
     <div className={`message ${isUser ? 'message-user' : 'message-ai'}`}>
       <div className="message-content">
-        {message.content}
+        {parseMarkdown(message.content)}
       </div>
 
       {/* Action buttons only for AI messages */}

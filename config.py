@@ -13,7 +13,8 @@ EMBEDDING_MODEL = "models/gemini-embedding-001"   # Gemini embedding model
 VECTOR_SIZE = 768                                  # Target vector size (Gemini output)
 
 # Generative / Chat Model Config
-CHAT_MODEL = "gemini-3.5-flash-lite"               # Gemini 3.5 Flash Lite (15 RPM, 500 RPD quota)
+CHAT_MODEL = "gemini-3.1-flash-lite"          # Gemini 3.1 Flash Lite (15 RPM, 500 RPD quota)
+
 
 # Qdrant Collection Names
 STATUTES_COLLECTION   = "statutes"                 # Layer 1: Statutory Laws & Acts

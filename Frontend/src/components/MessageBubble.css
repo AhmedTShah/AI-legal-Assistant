@@ -33,6 +33,7 @@
   font-size: var(--font-size-base);
   line-height: 1.6;
   word-wrap: break-word;
+  white-space: pre-wrap;
 }
 
 /* ── AI Message (Left Aligned) ──────────────────────────────── */
@@ -47,6 +48,7 @@
   font-size: var(--font-size-md);
   line-height: 1.75;
   word-wrap: break-word;
+  white-space: pre-wrap;
 }
 
 /* ── AI Message Actions ─────────────────────────────────────── */
@@ -117,3 +119,24 @@
     transform: scale(1);
   }
 }
+
+/* ── Custom Markdown Styles ─────────────────────────────────── */
+.message-paragraph {
+  margin: 0 0 6px 0;
+}
+
+.message-paragraph-space {
+  height: 12px;
+}
+
+.message-list {
+  margin: 8px 0 8px 24px;
+  padding-left: 0;
+  list-style-type: disc;
+}
+
+.message-list li {
+  margin-bottom: 6px;
+  line-height: 1.6;
+}
+
