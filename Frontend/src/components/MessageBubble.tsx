@@ -19,9 +19,28 @@ const parseMarkdown = (text: string) => {
   let listItems: React.ReactNode[] = [];
 
   const parseInline = (inlineText: string): React.ReactNode[] => {
-    // Split by markdown bold tags **text**
-    const parts = inlineText.split(/(\*\*[^*]+\*\*)/g);
+    // Split by markdown link [title](url) and bold **text**
+    const combinedRegex = /(\[[^\]]+\]\(https?:\/\/[^\s\)]+\)|\*\*[^*]+\*\*)/g;
+    const parts = inlineText.split(combinedRegex);
+
     return parts.map((part, index) => {
+      if (part.startsWith('[') && part.includes('](') && part.endsWith(')')) {
+        const titleMatch = part.match(/\[([^\]]+)\]/);
+        const urlMatch = part.match(/\((https?:\/\/[^\s\)]+)\)/);
+        if (titleMatch && urlMatch) {
+          return (
+            <a
+              key={index}
+              href={urlMatch[1]}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: '#3b82f6', textDecoration: 'underline', fontWeight: 500 }}
+            >
+              🔗 {titleMatch[1]}
+            </a>
+          );
+        }
+      }
       if (part.startsWith('**') && part.endsWith('**')) {
         return <strong key={index}>{part.slice(2, -2)}</strong>;
       }
