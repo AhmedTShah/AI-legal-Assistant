@@ -311,6 +311,28 @@ def get_recent_messages(session_id: str, limit: int = 10) -> List[Dict[str, str]
         return []
 
 
+def delete_session_messages(session_id: str) -> int:
+    """
+    Deletes all messages for a given session from the conversations table.
+    Returns the number of deleted rows.
+    """
+    try:
+        conn = get_db_connection(connect_db=True)
+        with conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM conversations WHERE session_id = %s;",
+                (session_id,)
+            )
+            deleted_count = cur.rowcount
+            conn.commit()
+        conn.close()
+        logger.info(f"Deleted {deleted_count} messages for session '{session_id}'.")
+        return deleted_count
+    except Exception as e:
+        logger.error(f"Failed to delete session messages: {e}")
+        raise e
+
+
 def get_session_summary(session_id: str) -> Optional[str]:
     """
     Returns the latest progressive summary for the given session.

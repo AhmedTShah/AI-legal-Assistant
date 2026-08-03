@@ -163,12 +163,13 @@ def build_legalmind_graph():
     builder.add_edge(START, "intent_router")
 
     # 3. Add Conditional Edge after intent_router
+    #    INTERNAL -> legal pipeline, EXTERNAL -> web search (with off-topic check inside)
     builder.add_conditional_edges(
         "intent_router",
         route_by_intent,
         {
-            "external_search": "web_search",
-            "internal_pipeline": "query_decomposer"
+            "internal_pipeline": "query_decomposer",
+            "external_search": "web_search"
         }
     )
 
@@ -178,8 +179,8 @@ def build_legalmind_graph():
     builder.add_edge("case_law_agent", "synthesis_agent")
 
     # 5. Terminal Edges to END
-    builder.add_edge("web_search", END)
     builder.add_edge("synthesis_agent", END)
+    builder.add_edge("web_search", END)
 
     # 6. Compile Graph
     app = builder.compile()
@@ -188,4 +189,3 @@ def build_legalmind_graph():
 
 # Create compiled instance for easy import
 app = build_legalmind_graph()
-

@@ -41,6 +41,7 @@ export default function App() {
   const [isTyping, setIsTyping] = useState(false);
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const activeChat = chats.find((c) => c.id === activeChatId) || null;
 
@@ -242,6 +243,38 @@ export default function App() {
       });
   };
 
+  const handleDeleteChat = async (id: string) => {
+    // Remove from frontend state
+    setChats((prev) => {
+      const updated = prev.filter((c) => c.id !== id);
+      // If we deleted the active chat, switch to the first remaining or create new
+      if (activeChatId === id) {
+        if (updated.length > 0) {
+          setActiveChatId(updated[0].id);
+        } else {
+          const newId = Date.now().toString();
+          const newChat: Chat = {
+            id: newId,
+            title: 'New Legal Consultation',
+            messages: [],
+          };
+          setActiveChatId(newId);
+          return [newChat];
+        }
+      }
+      return updated;
+    });
+
+    // Delete from backend database
+    try {
+      await fetch(`http://localhost:8000/api/chat/${id}`, {
+        method: 'DELETE',
+      });
+    } catch (error) {
+      console.error('Failed to delete chat from backend:', error);
+    }
+  };
+
   const handleUpdateTitle = (newTitle: string) => {
     setChats((prev) =>
       prev.map((c) => (c.id === activeChatId ? { ...c, title: newTitle } : c))
@@ -249,12 +282,15 @@ export default function App() {
   };
 
   return (
-    <div className="app-container">
+    <div className={`app-container ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <Sidebar
         chats={chats}
         activeChatId={activeChatId}
+        isCollapsed={isSidebarCollapsed}
         onNewChat={handleNewChat}
         onSelectChat={handleSelectChat}
+        onDeleteChat={handleDeleteChat}
+        onToggleSidebar={() => setIsSidebarCollapsed((prev) => !prev)}
       />
       <div className="main-content-wrapper">
         {activeChat ? (

@@ -8,7 +8,7 @@ Pattern:
 
 LangGraph Routing:
     route_by_intent() is the Conditional Edge function.
-    Returns "external_search" or "internal_pipeline" to direct the graph.
+    Returns "external_offtopic" or "internal_pipeline" to direct the graph.
 """
 
 import os
@@ -35,7 +35,7 @@ from agents.state import LegalMindState
 
 class IntentClassification(BaseModel):
     intent: Literal["INTERNAL", "EXTERNAL"] = Field(
-        description="INTERNAL if asking about law/section/punishment. EXTERNAL if asking for a website link or portal."
+        description="INTERNAL if the query is related to Pakistani law. EXTERNAL if the query is NOT related to Pakistani law at all."
     )
     reason: str = Field(
         description="One short sentence explaining the classification decision."
@@ -48,21 +48,26 @@ class IntentClassification(BaseModel):
 
 _INTENT_SYSTEM_PROMPT = """You are a legal query classifier for LegalMind, an AI legal research assistant for Pakistani law.
 
+Your ONLY job is to determine: Is this query related to Pakistani law or not?
+
 Classify the user query into exactly one of:
 
-INTERNAL — User is asking about:
+INTERNAL — The query IS related to Pakistani law. This includes:
 - Any Pakistani law, act, section, article, rule, or ordinance
 - Punishments, penalties, bail conditions, cognizable / non-cognizable offences
 - Legal definitions or court procedures
 - Pakistani legal terms: Qatl, Diyat, Qisas, Hadd, Tazir, Zina, Patwari, Intiqal, Fard, Khasra
 - Case research, legal precedents, or legal memo generation
 - Witness statement comparison
+- Asking for links/URLs to LEGAL portals or government law websites (Pakistan Code, Punjab Laws, NALA, SECP, FBR)
+- Asking where to download a PDF of a LAW or legal document
 
-EXTERNAL — User is asking about:
-- A website link or URL to find a legal document
-- Which government portal hosts a specific law (Pakistan Code, Punjab Laws, NALA, SECP, FBR)
-- Where to download a PDF of a law
-- Any official government website or portal name
+EXTERNAL — The query is NOT related to Pakistani law at all. This includes:
+- General knowledge, food, entertainment, sports, weather, shopping, travel
+- Personal advice unrelated to legal matters
+- Non-legal website links, recommendations, or off-topic questions
+- Coffee shops, restaurants, cricket, jokes, recipes, etc.
+- ANY query that has absolutely no connection to Pakistani law, legal research, or legal procedures
 
 When in doubt, choose INTERNAL.
 
@@ -98,20 +103,36 @@ Intent: INTERNAL
 Reason: Asking for case law research related to a specific statute.
 
 Query: "Give me the official link of Pakistan Code website."
-Intent: EXTERNAL
-Reason: Asking for a URL to a government portal, not about a law itself.
+Intent: INTERNAL
+Reason: Asking for a URL to a government legal portal — law-related.
 
 Query: "Where can I download the PECA 2016 PDF from the official site?"
-Intent: EXTERNAL
-Reason: Asking where to find/download a legal document online.
+Intent: INTERNAL
+Reason: Asking where to find/download a legal document online — law-related.
 
-Query: "Which government website has the Punjab Police Rules?"
+Query: "List me 5 coffee shops in Lahore."
 Intent: EXTERNAL
-Reason: Asking which portal hosts a document, not about its content.
+Reason: Query is about food/restaurants, completely unrelated to law.
 
-Query: "Tell me the NALA or FBR portal link for tax law documents."
+Query: "What is the weather in Karachi today?"
 Intent: EXTERNAL
-Reason: Asking for a portal name and link, not about any legal provision.
+Reason: Query is about weather, has no legal context.
+
+Query: "Who won the cricket match yesterday?"
+Intent: EXTERNAL
+Reason: Query is about sports, not related to legal research.
+
+Query: "Tell me a joke."
+Intent: EXTERNAL
+Reason: Query is casual/entertainment, not a legal question.
+
+Query: "Give me links of best coffee shops in Lahore."
+Intent: EXTERNAL
+Reason: Asking for non-legal website links about restaurants, not related to law.
+
+Query: "What is the best shopping website in Pakistan?"
+Intent: EXTERNAL
+Reason: Asking for a commercial website recommendation, not a legal query.
 ---"""
 
 
@@ -178,13 +199,12 @@ def intent_router_node(state: LegalMindState) -> dict:
 
 def route_by_intent(state: LegalMindState) -> Literal["external_search", "internal_pipeline"]:
     """
-    EXTERNAL → "external_search"    (Web Search Node)
     INTERNAL → "internal_pipeline"  (Query Decomposer Node)
+    EXTERNAL → "external_search"    (Web Search Node — has off-topic check built in)
     """
     if state.get("intent") == "EXTERNAL":
         print("[Edge] Routing -> external_search")
         return "external_search"
-
 
     print("[Edge] Routing -> internal_pipeline")
     return "internal_pipeline"

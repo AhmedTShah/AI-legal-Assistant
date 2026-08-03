@@ -100,6 +100,20 @@ def get_chat_history(session_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.delete("/api/chat/{session_id}")
+def delete_chat_history(session_id: str):
+    """
+    Deletes all messages for a given session from the database.
+    """
+    try:
+        from database.memory import delete_session_messages
+        deleted_count = delete_session_messages(session_id)
+        return {"status": "deleted", "session_id": session_id, "deleted_count": deleted_count}
+    except Exception as e:
+        logger.error(f"Failed to delete chat history for session {session_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
     """
@@ -156,15 +170,21 @@ async def chat_endpoint(request: ChatRequest):
         
         # 4. Formulate the response based on the intent result
         intent = final_state.get("intent")
+        status = final_state.get("status", "")
         
         if intent == "EXTERNAL":
-            web_results = final_state.get("web_search_results") or []
-            if web_results:
-                response_text = "Here are the top results from the web:\n\n"
-                for idx, res in enumerate(web_results, 1):
-                    response_text += f"{idx}. **[{res.get('title')}]({res.get('url')})**\n{res.get('snippet')}\n\n"
+            if status == "OFF_TOPIC_QUERY":
+                # Off-topic query — use the polite refusal from web_search_node
+                response_text = final_state.get("synthesis_response") or "This query is not related to Pakistani law."
             else:
-                response_text = "External web search was triggered but no results were retrieved."
+                # Law-related link request — format web search results
+                web_results = final_state.get("web_search_results") or []
+                if web_results:
+                    response_text = "Here are the top results from the web:\n\n"
+                    for idx, res in enumerate(web_results, 1):
+                        response_text += f"{idx}. **[{res.get('title')}]({res.get('url')})**\n{res.get('snippet')}\n\n"
+                else:
+                    response_text = "External web search was triggered but no results were retrieved."
         else:
             response_text = final_state.get("synthesis_response") or "No legal response could be synthesized."
 
@@ -175,11 +195,13 @@ async def chat_endpoint(request: ChatRequest):
             logger.warning(f"Failed to persist assistant message: {e}")
 
         # 6. Trigger progressive summarization and long-term memory updates
-        try:
-            update_session_summary(request.session_id)
-            add_long_term_memory(request.user_id, request.message, response_text, case_ref=case_ref)
-        except Exception as e:
-            logger.warning(f"Failed to run progressive summarization or long-term memory sync: {e}")
+        #    Skip for off-topic queries — no value in saving non-legal chatter to memory
+        if status != "OFF_TOPIC_QUERY":
+            try:
+                update_session_summary(request.session_id)
+                add_long_term_memory(request.user_id, request.message, response_text, case_ref=case_ref)
+            except Exception as e:
+                logger.warning(f"Failed to run progressive summarization or long-term memory sync: {e}")
 
         return ChatResponse(
             response=response_text,
