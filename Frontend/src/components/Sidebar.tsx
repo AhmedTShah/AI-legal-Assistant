@@ -10,16 +10,22 @@ interface SidebarProps {
   chats: Chat[];
   activeChatId: string | null;
   isCollapsed: boolean;
+  displayName: string;
   onNewChat: () => void;
   onSelectChat: (id: string) => void;
   onDeleteChat: (id: string) => void;
   onToggleSidebar: () => void;
+  onOpenSettings: () => void;
 }
 
-export default function Sidebar({ chats, activeChatId, isCollapsed, onNewChat, onSelectChat, onDeleteChat, onToggleSidebar }: SidebarProps) {
+export default function Sidebar({
+  chats, activeChatId, isCollapsed, displayName,
+  onNewChat, onSelectChat, onDeleteChat, onToggleSidebar, onOpenSettings,
+}: SidebarProps) {
   return (
     <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
-      {/* ── Logo & Sidebar Toggle ─────────────────────── */}
+
+      {/* ── Logo & Toggle ──────────────────────────────── */}
       <div className="sidebar-header">
         <div className="sidebar-logo">
           <img className="sidebar-logo-img" src={lawLogo} alt="LegalMind Logo" />
@@ -33,7 +39,7 @@ export default function Sidebar({ chats, activeChatId, isCollapsed, onNewChat, o
         </button>
       </div>
 
-      {/* ── New Chat Button ── */}
+      {/* ── New Chat ───────────────────────────────────── */}
       <button className="sidebar-new-chat" onClick={onNewChat} id="btn-new-chat" title="New Chat">
         <svg className="new-chat-plus" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <line x1="12" y1="5" x2="12" y2="19" />
@@ -42,36 +48,10 @@ export default function Sidebar({ chats, activeChatId, isCollapsed, onNewChat, o
         {!isCollapsed && 'New Chat'}
       </button>
 
-      {/* ── Navigation ──────────────── */}
+      {/* ── Settings nav item only ─────────────────────── */}
       {!isCollapsed && (
         <nav className="sidebar-nav">
-          <button className="sidebar-nav-item" id="nav-explore">
-            <svg className="sidebar-nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-            Explore
-          </button>
-          
-          <button className="sidebar-nav-item" id="nav-categories">
-            <svg className="sidebar-nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="7" height="7" />
-              <rect x="14" y="3" width="7" height="7" />
-              <rect x="14" y="14" width="7" height="7" />
-              <rect x="3" y="14" width="7" height="7" />
-            </svg>
-            Categories
-          </button>
-
-          <button className="sidebar-nav-item" id="nav-library">
-            <svg className="sidebar-nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-            </svg>
-            Library
-            <span className="sidebar-library-badge">32</span>
-          </button>
-
-          <button className="sidebar-nav-item" id="nav-settings">
+          <button className="sidebar-nav-item" id="nav-settings" onClick={onOpenSettings}>
             <svg className="sidebar-nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3" />
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
@@ -81,15 +61,13 @@ export default function Sidebar({ chats, activeChatId, isCollapsed, onNewChat, o
         </nav>
       )}
 
-      {/* ── Recent Chats ─────── */}
+      {/* ── Recent Chats ───────────────────────────────── */}
       {!isCollapsed && (
         <>
           <div className="sidebar-section-label">Recent Chats</div>
           <div className="sidebar-chats dark-scrollbar">
             {chats.length === 0 && (
-              <div className="sidebar-chat-item-empty">
-                No consultations yet
-              </div>
+              <div className="sidebar-chat-item-empty">No consultations yet</div>
             )}
             {chats.map((chat) => (
               <div
@@ -102,10 +80,7 @@ export default function Sidebar({ chats, activeChatId, isCollapsed, onNewChat, o
                 <button
                   className="sidebar-chat-delete"
                   title="Delete chat"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteChat(chat.id);
-                  }}
+                  onClick={(e) => { e.stopPropagation(); onDeleteChat(chat.id); }}
                   id={`delete-chat-${chat.id}`}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -121,16 +96,16 @@ export default function Sidebar({ chats, activeChatId, isCollapsed, onNewChat, o
         </>
       )}
 
-      {/* ── User Profile ──────────────────────────────── */}
+      {/* ── User Profile ───────────────────────────────── */}
       <div className="sidebar-user">
-        <img 
-          className="sidebar-user-avatar" 
-          src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=120&h=120" 
-          alt="Maya Johnes" 
+        <img
+          className="sidebar-user-avatar"
+          src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=120&h=120"
+          alt={displayName}
         />
         {!isCollapsed && (
           <div className="sidebar-user-info">
-            <span className="sidebar-user-name">Maya Johnes</span>
+            <span className="sidebar-user-name">{displayName}</span>
           </div>
         )}
         {!isCollapsed && (

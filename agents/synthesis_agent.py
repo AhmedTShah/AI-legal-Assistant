@@ -30,14 +30,8 @@ Your job is to answer the user's query based strictly on the provided legal cont
    - ONLY IF the user explicitly requests a "formal memo", "detailed memorandum", or similar, you must generate a full, structured legal memo including an Executive Summary, Legal Analysis, and Conclusion.
 2. **Citations & Document Links**:
    - DO NOT insert markdown links inside sentences.
-   - At the very end of a sentence or paragraph that references a document, append a citation link in the format `[Abbreviation](URL)`.
-   - Use short abbreviations for the document name (e.g. `PPC` for Pakistan Penal Code, `CrPC` for Code of Criminal Procedure, `Schedule II` for Schedule II Tabular Statement, or standard case citations like `PLD 2020 SC 1`).
+   - At the very end of a sentence or paragraph that references a context block, you MUST append the exact `Citation to use:` string provided in that context block's metadata.
    - Do NOT use emojis (like 📌) or put the citation on a new line. It must be inline, right at the end of the sentence.
-   - Example:
-     ```
-     Under Section 379 of the Pakistan Penal Code, 1860, the punishment for theft is imprisonment for up to three years, a fine, or both. [PPC](http://localhost:8000/api/statutes/PPC.pdf)
-     ```
-   - If no URL is present in the context, cite it as plain text in brackets at the end of the sentence/paragraph (e.g. `[PPC]`).
 3. **Conflicts**: If different courts have conflicting views, point them out. Supreme Court (SCP) precedents always override High Court precedents.
 4. **No Hallucination**: Do NOT invent laws or cases. If the provided context is insufficient to fully answer the query, state clearly what is unknown.
 """
@@ -50,10 +44,8 @@ Your job is to write a comprehensive, professional, and well-structured legal me
 1. **Structure**: Use markdown formatting. Include an Executive Summary, Legal Analysis, and Conclusion. Use proper headers (#, ##).
 2. **Citations & Document Links**:
    - DO NOT insert markdown links inside sentences.
-   - At the very end of a sentence or paragraph that references a document, append a citation link in the format `[Abbreviation](URL)`.
-   - Use short abbreviations for the document name (e.g. `PPC`, `CrPC`, `Schedule II`, etc.).
+   - At the very end of a sentence or paragraph that references a context block, you MUST append the exact `Citation to use:` string provided in that context block's metadata.
    - Do NOT use emojis (like 📌) or put the citation on a new line. It must be inline, right at the end of the sentence.
-   - If no URL is present in the context, cite it as plain text in brackets at the end of the sentence/paragraph (e.g. `[PPC]`).
 3. **Synthesis**: Synthesize the rules established by the cases and apply them to the user's situation.
 4. **Tone**: Objective, professional, analytical.
 5. **No Hallucination**: Do NOT invent laws or cases.
@@ -118,18 +110,19 @@ class SynthesisAgent:
             ),
         )
 
-    def format_context(self, retrieved_results: List[Dict[str, Any]]) -> str:
+    def format_context(self, retrieved_results: List[Dict[str, Any]]) -> tuple[str, Dict[str, str]]:
         """
         Formats the raw retrieved list of dicts into a string block for the LLM.
+        Returns a tuple of (context_string, context_map) where context_map is used for post-generation replacement.
         """
         if not retrieved_results:
-            return "No relevant case laws or statutes were found."
+            return "No relevant case laws or statutes were found.", {}
 
         context_lines = []
+        context_map = {}
         for idx, res in enumerate(retrieved_results, start=1):
             court = res.get("court", res.get("jurisdiction", "Unknown Court/Jurisdiction"))
             year = res.get("year", "Unknown Year")
-            
             # Statutes often use act_name and section_number instead of laws_cited
             act_name = res.get("act_name")
             section = res.get("section_number")
@@ -142,35 +135,58 @@ class SynthesisAgent:
             file_name = res.get("file_name") or res.get("source_file") or "Unknown File"
             url = res.get("source_url", "")
             
-            # Fallback to our local endpoints if no external URL exists
+            # Unconditionally generate local endpoints if no external URL exists
             if not url and file_name != "Unknown File":
-                # Ensure the filename is url-encoded (e.g. for spaces)
                 import urllib.parse
                 safe_filename = urllib.parse.quote(file_name)
-                # Check if file exists in Statutes_pipeline/statutes directory
-                base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                local_statute_path = os.path.join(base_dir, "Statutes_pipeline", "statutes", file_name)
-                if os.path.exists(local_statute_path):
+                
+                # Check if it's a statute vs case law based on court/act_name or path
+                is_statute = bool(act_name) or "Statutes_pipeline" in file_name or file_name.endswith((".txt", ".md"))
+                if is_statute:
                     url = f"http://localhost:8000/api/statutes/{safe_filename}"
+                else:
+                    url = f"http://localhost:8000/api/downloads/{safe_filename}"
+
+            # Construct a meaningful abbreviation for the citation
+            if act_name:
+                if section:
+                    abbrev = f"{act_name}, Sec {section}"
+                else:
+                    abbrev = act_name
+            else:
+                abbrev = f"{court} {year}" if "Unknown" not in court else file_name.replace(".pdf", "")
+                if len(abbrev) > 25:
+                    abbrev = abbrev[:25] + "..."
+            
+            # Make abbreviation unique to avoid URL collisions if multiple cases have same court/year
+            original_abbrev = abbrev
+            counter = 1
+            while f"[{abbrev}]" in context_map:
+                abbrev = f"{original_abbrev} {chr(96+counter)}" # e.g. ihc 2024 a
+                counter += 1
+            
+            placeholder = f"[{abbrev}]"
+            citation_str = f"[{abbrev}]({url})" if url else f"[{abbrev}]"
+            context_map[placeholder] = citation_str
 
             text = res.get("text", "").strip()
             score = res.get("score", 0.0)
 
             header = f"--- Context {idx} [Score: {score:.3f}] ---"
-            meta = f"Source: {court} | Year: {year} | Laws: {laws} | File: {file_name}"
+            meta = f"Citation to use: {placeholder}\nSource: {court} | Year: {year} | Laws: {laws} | File: {file_name}"
             if url:
                 meta += f" | URL: {url}"
             
             context_lines.append(f"{header}\n{meta}\nText:\n{text}\n")
             
-        return "\n".join(context_lines)
+        return "\n".join(context_lines), context_map
 
-    def synthesize(self, original_query: str, retrieved_results: List[Dict[str, Any]]) -> str:
+    def synthesize(self, original_query: str, retrieved_results: List[Dict[str, Any]], intent: str = "INTERNAL") -> str:
         """
-        Generates the final legal memo.
+        Generates the final legal memo or web search summary.
         """
-        logger.info("SynthesisAgent generating memo for query: '%s'", original_query)
-        context_str = self.format_context(retrieved_results)
+        logger.info("SynthesisAgent generating response for query: '%s' (Intent: %s)", original_query, intent)
+        context_str, context_map = self.format_context(retrieved_results)
         
         prompt = (
             f"USER QUERY:\n{original_query}\n\n"
@@ -178,10 +194,25 @@ class SynthesisAgent:
             "Please answer the query based on the retrieved contexts."
         )
         
-        model = self._build_model(system_instruction=_CHAT_PROMPT)
+        if intent == "EXTERNAL":
+            _WEB_SEARCH_PROMPT = """You are LegalMind, an AI legal assistant. The user has just run a live web search.
+Your job is to read the retrieved web search snippets and provide a helpful, natural, and conversational summary answering the user's question. 
+DO NOT act like a rigid offline database. If the user asks why you can't search a specific archive, politely explain your current capabilities.
+Always append the exact `Citation to use:` string provided in the context blocks to cite your sources inline.
+"""
+            model = self._build_model(system_instruction=_WEB_SEARCH_PROMPT)
+        else:
+            model = self._build_model(system_instruction=_CHAT_PROMPT)
+
         try:
-            response = model.generate_content(prompt)
-            return response.text
+            response_text = model.generate_content(prompt).text
+            # Inject actual links after LLM generates text to prevent URL stripping
+            import re
+            for placeholder, actual_citation in context_map.items():
+                abbrev = placeholder[1:-1] # strip the [ and ] to get raw abbrev
+                pattern = r'\[\s*' + re.escape(abbrev) + r'\s*\]|' + re.escape(abbrev)
+                response_text = re.sub(pattern, actual_citation, response_text)
+            return response_text
         except Exception as exc:
             logger.error("Synthesis generation failed: %s", exc)
             raise RuntimeError(f"Synthesis failed: {exc}") from exc
@@ -192,7 +223,7 @@ class SynthesisAgent:
         Returns the absolute path to the PDF.
         """
         logger.info("SynthesisAgent generating formal memo PDF.")
-        context_str = self.format_context(retrieved_results)
+        context_str, context_map = self.format_context(retrieved_results)
         
         prompt = (
             f"CHAT HISTORY:\n{chat_history_str}\n\n"
@@ -202,8 +233,10 @@ class SynthesisAgent:
         
         model = self._build_model(system_instruction=_MEMO_PROMPT)
         try:
-            response = model.generate_content(prompt)
-            markdown_content = response.text
+            response_text = model.generate_content(prompt).text
+            for placeholder, actual_citation in context_map.items():
+                response_text = response_text.replace(placeholder, actual_citation)
+            markdown_content = response_text
         except Exception as exc:
             logger.error("Memo text generation failed: %s", exc)
             raise RuntimeError(f"Memo text generation failed: {exc}") from exc
@@ -253,7 +286,8 @@ def synthesis_agent_node(state: LegalMindState) -> dict:
 
     try:
         agent = SynthesisAgent()
-        response_memo = agent.synthesize(query, retrieved_chunks)
+        intent = state.get("intent", "INTERNAL")
+        response_memo = agent.synthesize(query, retrieved_chunks, intent)
         print("[Synthesis Agent] Final legal memo generated successfully.")
         return {
             "synthesis_response": response_memo,

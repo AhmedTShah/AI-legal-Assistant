@@ -32,8 +32,9 @@ def clean_search_query(raw_query: str) -> str:
     """
     cleaned = raw_query.strip()
     
-    # Remove common conversational prefixes
+    # Remove common conversational prefixes and frontend toggle prefixes
     patterns = [
+        r'^web\s+search:\s*',
         r'^(?:give\s+me\s+the\s+)?(?:official\s+)?(?:link\s+of|url\s+of|website\s+of|link\s+to|url\s+to|link\s+for|url\s+for)\s+',
         r'^(?:where\s+can\s+i\s+find|where\s+is|how\s+to\s+find)\s+',
         r'^(?:tell\s+me\s+the\s+link\s+for|show\s+me\s+the\s+link\s+for)\s+',
@@ -49,19 +50,22 @@ def clean_search_query(raw_query: str) -> str:
 def execute_web_search(query: str, max_results: int = 3) -> List[Dict[str, str]]:
     """
     Executes a dynamic web search for the cleaned query string.
-    
-    Args:
-        query: Raw or cleaned user query string
-        max_results: Maximum search results to return (default 3)
-        
-    Returns:
-        List of dicts containing: title, url, snippet
     """
     results = []
+    
+    # Dynamically import to pick up newly installed libraries without a server restart
+    DDGS = None
+    try:
+        from ddgs import DDGS
+    except ImportError:
+        try:
+            from duckduckgo_search import DDGS
+        except ImportError:
+            pass
 
-    if not HAS_DDG:
+    if DDGS is None:
         print("[Web Search Agent] Error: 'ddgs' library is not installed.")
-        print("[Web Search Agent] Please run: pip install ddgs")
+        print("[Web Search Agent] Please run: pip install duckduckgo-search")
         return [{
             "title": "Library Not Installed",
             "url": "",
@@ -70,15 +74,25 @@ def execute_web_search(query: str, max_results: int = 3) -> List[Dict[str, str]]
 
     # Clean conversational fluff from query
     search_keywords = clean_search_query(query)
+    
+    # Force Pakistan context if missing
+    if "pakistan" not in search_keywords.lower():
+        search_keywords += " Pakistan"
+
+    print(f"[Web Search Debug] Cleaned keywords: '{search_keywords}'")
 
     try:
         with DDGS() as ddgs:
             # First try with cleaned keywords
-            ddg_results = list(ddgs.text(search_keywords, max_results=max_results))
+            ddg_results = list(ddgs.text(search_keywords, region='pk-en', max_results=max_results))
             
             # Fallback to raw query if 0 results
             if not ddg_results and search_keywords != query:
-                ddg_results = list(ddgs.text(query, max_results=max_results))
+                fallback_query = query
+                if "pakistan" not in fallback_query.lower():
+                    fallback_query += " Pakistan"
+                print(f"[Web Search Debug] Fallback query: '{fallback_query}'")
+                ddg_results = list(ddgs.text(fallback_query, region='pk-en', max_results=max_results))
 
             for item in ddg_results:
                 results.append({
@@ -86,6 +100,20 @@ def execute_web_search(query: str, max_results: int = 3) -> List[Dict[str, str]]
                     "url": item.get("href", ""),
                     "snippet": item.get("body", "")
                 })
+                
+            if not results:
+                # Debugging info if 0 results returned
+                import pkg_resources
+                try:
+                    v = pkg_resources.get_distribution("ddgs").version
+                except:
+                    v = "Unknown"
+                results.append({
+                    "title": "No Results Found (Debugging)",
+                    "url": "",
+                    "snippet": f"DDG returned 0 results. Keywords: '{search_keywords}', ddgs version: {v}"
+                })
+
     except Exception as e:
         print(f"[Web Search Agent] Search execution error: {e}")
         results.append({
@@ -146,11 +174,20 @@ def web_search_node(state: LegalMindState) -> dict:
     search_results = execute_web_search(raw_query, max_results=3)
 
     print(f"[Web Search Node] Returned {len(search_results)} search result(s):")
+    retrieved_chunks = []
     for idx, res in enumerate(search_results, 1):
         print(f"  {idx}. {res['title']} -> {res['url']}")
+        retrieved_chunks.append({
+            "court": "Unknown Court",
+            "year": "2024",
+            "file_name": res["title"],
+            "source_url": res["url"],
+            "text": res["snippet"]
+        })
 
     return {
         "web_search_results": search_results,
+        "retrieved_chunks": retrieved_chunks,
         "status": "EXTERNAL_SEARCH_COMPLETED"
     }
 

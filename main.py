@@ -172,19 +172,8 @@ async def chat_endpoint(request: ChatRequest):
         intent = final_state.get("intent")
         status = final_state.get("status", "")
         
-        if intent == "EXTERNAL":
-            if status == "OFF_TOPIC_QUERY":
-                # Off-topic query — use the polite refusal from web_search_node
-                response_text = final_state.get("synthesis_response") or "This query is not related to Pakistani law."
-            else:
-                # Law-related link request — format web search results
-                web_results = final_state.get("web_search_results") or []
-                if web_results:
-                    response_text = "Here are the top results from the web:\n\n"
-                    for idx, res in enumerate(web_results, 1):
-                        response_text += f"{idx}. **[{res.get('title')}]({res.get('url')})**\n{res.get('snippet')}\n\n"
-                else:
-                    response_text = "External web search was triggered but no results were retrieved."
+        if intent == "EXTERNAL" and status == "OFF_TOPIC_QUERY":
+            response_text = final_state.get("synthesis_response") or "This query is not related to Pakistani law."
         else:
             response_text = final_state.get("synthesis_response") or "No legal response could be synthesized."
 

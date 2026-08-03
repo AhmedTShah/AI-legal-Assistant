@@ -101,30 +101,65 @@ class CaseLawAgent:
         # Build Qdrant filter
         qdrant_filter = self._build_filter(sub_query)
         
-        # Perform search with strict filters first
+        # Perform cascading searches to guarantee both precision (requested courts) and substance (best semantic matches)
         try:
-            search_results = self.client.query_points(
-                collection_name=self.collection_name,
-                query=query_vector,
-                query_filter=qdrant_filter,
-                limit=top_k,
-                with_payload=True
-            )
+            all_hits = []
+            seen_ids = set()
             
-            # If 0 results returned and filters were applied, fallback to vector-only similarity search
-            if not search_results.points and qdrant_filter:
-                logger.info("Strict filter search yielded 0 results for SubQuery [%s]. Falling back to vector similarity search...", sub_query.id)
-                search_results = self.client.query_points(
+            # 1. Strict filter search
+            if qdrant_filter:
+                search_results_strict = self.client.query_points(
                     collection_name=self.collection_name,
                     query=query_vector,
-                    query_filter=None,  # Relax filters
+                    query_filter=qdrant_filter,
                     limit=top_k,
                     with_payload=True
                 )
+                for hit in search_results_strict.points:
+                    all_hits.append(hit)
+                    seen_ids.add(hit.id)
+            
+            # 2. Relaxed filter search (Preserve only court, drop strict case_type/laws_cited)
+            if sub_query.qdrant_filters.courts and len(all_hits) < top_k:
+                relaxed_must = [
+                    qmodels.FieldCondition(
+                        key="court",
+                        match=qmodels.MatchAny(any=[c.value for c in sub_query.qdrant_filters.courts])
+                    )
+                ]
+                relaxed_filter = qmodels.Filter(must=relaxed_must)
+                search_results_relaxed = self.client.query_points(
+                    collection_name=self.collection_name,
+                    query=query_vector,
+                    query_filter=relaxed_filter,
+                    limit=top_k,
+                    with_payload=True
+                )
+                for hit in search_results_relaxed.points:
+                    if hit.id not in seen_ids:
+                        all_hits.append(hit)
+                        seen_ids.add(hit.id)
+            
+            # 3. Global unfiltered semantic search (Guarantee substantive ratio decidendi even if court cases are procedural)
+            search_results_global = self.client.query_points(
+                collection_name=self.collection_name,
+                query=query_vector,
+                query_filter=None,
+                limit=top_k,
+                with_payload=True
+            )
+            for hit in search_results_global.points:
+                if hit.id not in seen_ids:
+                    all_hits.append(hit)
+                    seen_ids.add(hit.id)
+            
+            # Sort by score descending and take top N (allow up to 6 for rich synthesis)
+            all_hits.sort(key=lambda x: x.score, reverse=True)
+            all_hits = all_hits[:max(top_k, 6)]
             
             # Format results
             formatted_results = []
-            for hit in search_results.points:
+            for hit in all_hits:
                 payload = hit.payload or {}
                 formatted_results.append({
                     "sub_query_id": sub_query.id,
