@@ -110,19 +110,10 @@
 }
 
 .empty-state-logo {
-  font-size: var(--font-size-3xl);
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
   margin-bottom: var(--spacing-lg);
-  color: var(--color-gold);
-  animation: logoFloat 3s ease-in-out infinite;
-}
-
-@keyframes logoFloat {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-8px);
-  }
 }
 
 .empty-state-title {
