@@ -2,6 +2,7 @@ import { useRef, useEffect } from 'react';
 import MessageBubble, { TypingIndicator } from './MessageBubble';
 import type { Message } from './MessageBubble';
 import ChatInput from './ChatInput';
+import lawLogo from '../assets/law-logo.png';
 import './ChatArea.css';
 
 interface ChatAreaProps {
@@ -12,6 +13,7 @@ interface ChatAreaProps {
   onSendMessage: (message: string) => void;
   onUpdateTitle: (title: string) => void;
   onGenerateMemo?: () => void;
+  onLinkClick?: (url: string) => void;
 }
 
 export default function ChatArea({
@@ -22,6 +24,7 @@ export default function ChatArea({
   onSendMessage,
   onUpdateTitle,
   onGenerateMemo,
+  onLinkClick,
 }: ChatAreaProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -86,7 +89,7 @@ export default function ChatArea({
       <div className="chat-messages-container">
         {messages.length === 0 ? (
           <div className="chat-empty-state">
-            <div className="empty-state-logo">⚖</div>
+            <img className="empty-state-logo" src={lawLogo} alt="LegalMind Logo" />
             <h2 className="empty-state-title">LegalMind AI</h2>
             <p className="empty-state-subtitle">
               Your AI Legal Assistant for Pakistani Law. Ask questions about the Pakistan Penal Code,
@@ -94,7 +97,7 @@ export default function ChatArea({
             </p>
           </div>
         ) : (
-          messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)
+          messages.map((msg) => <MessageBubble key={msg.id} message={msg} onLinkClick={onLinkClick} />)
         )}
         {isTyping && <TypingIndicator />}
         <div ref={messagesEndRef} />

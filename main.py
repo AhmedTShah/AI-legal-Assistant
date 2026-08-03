@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from agents.graph import app as graph_app
 from agents.state import LegalMindState
 from agents.synthesis_agent import SynthesisAgent
+from database.memory import save_message, update_session_summary, add_long_term_memory
 
 # Load environment variables
 load_dotenv()
@@ -45,9 +46,16 @@ downloads_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "downl
 os.makedirs(downloads_path, exist_ok=True)
 app.mount("/api/downloads", StaticFiles(directory=downloads_path), name="downloads")
 
+# Serve statutes directory statically for PDF links
+statutes_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Statutes_pipeline", "statutes")
+os.makedirs(statutes_path, exist_ok=True)
+app.mount("/api/statutes", StaticFiles(directory=statutes_path), name="statutes")
+
 # Pydantic Schemas for API Contracts
 class ChatRequest(BaseModel):
     message: str
+    session_id: Optional[str] = "default"
+    user_id: Optional[str] = "lawyer_abc"
 
 class ChatHistoryRequest(BaseModel):
     history: str
@@ -78,6 +86,34 @@ def health_check():
     }
 
 
+@app.get("/api/chat/{session_id}")
+def get_chat_history(session_id: str):
+    """
+    Retrieves the chat history (messages) for a given session.
+    """
+    try:
+        from database.memory import get_recent_messages
+        messages = get_recent_messages(session_id, limit=50) # Fetch up to 50 messages
+        return {"messages": messages}
+    except Exception as e:
+        logger.error(f"Failed to fetch chat history for session {session_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/chat/{session_id}")
+def delete_chat_history(session_id: str):
+    """
+    Deletes all messages for a given session from the database.
+    """
+    try:
+        from database.memory import delete_session_messages
+        deleted_count = delete_session_messages(session_id)
+        return {"status": "deleted", "session_id": session_id, "deleted_count": deleted_count}
+    except Exception as e:
+        logger.error(f"Failed to delete chat history for session {session_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
     """
@@ -85,11 +121,29 @@ async def chat_endpoint(request: ChatRequest):
     LangGraph pipeline (starting with the Intent Router), and returns
     the synthesized legal memo or search results.
     """
-    logger.info(f"Received query: {request.message}")
+    logger.info(f"Received query: {request.message} (Session: {request.session_id}, User: {request.user_id})")
 
-    # 1. Initialize the shared state schema
+    # 1. Save user query to short-term memory conversations table
+    try:
+        save_message(request.user_id, request.session_id, "human", request.message)
+    except Exception as e:
+        logger.warning(f"Failed to persist human message: {e}")
+
+    # Detect case_ref if query mentions "case of X vs Y" or similar
+    case_ref = None
+    if " vs " in request.message or " versus " in request.message:
+        # Simple extraction heuristic for case_ref
+        import re
+        match = re.search(r"([A-Za-z\s]+ v[s\.]?\s+[A-Za-z\s]+)", request.message, re.IGNORECASE)
+        if match:
+            case_ref = match.group(1).strip()
+
+    # 2. Initialize the shared state schema with session parameters
     initial_state: LegalMindState = {
         "user_query": request.message,
+        "user_id": request.user_id,
+        "session_id": request.session_id,
+        "case_ref": case_ref,
         "intent": None,
         "intent_reason": None,
         "detected_language": None,
@@ -111,25 +165,43 @@ async def chat_endpoint(request: ChatRequest):
     }
 
     try:
-        # 2. Invoke the compiled LangGraph pipeline
-        # This will sequentially call: intent_router -> query_decomposer -> statute_agent -> case_law_agent -> synthesis_agent
+        # 3. Invoke the compiled LangGraph pipeline
         final_state = graph_app.invoke(initial_state)
         
-        # 3. Formulate the response based on the intent result
+        # 4. Formulate the response based on the intent result
         intent = final_state.get("intent")
+        status = final_state.get("status", "")
         
         if intent == "EXTERNAL":
-            # For web searches, aggregate search results as fallback response
-            web_results = final_state.get("web_search_results") or []
-            if web_results:
-                response_text = "Here are the top results from the web:\n\n"
-                for idx, res in enumerate(web_results, 1):
-                    response_text += f"{idx}. **[{res.get('title')}]({res.get('url')})**\n{res.get('snippet')}\n\n"
+            if status == "OFF_TOPIC_QUERY":
+                # Off-topic query — use the polite refusal from web_search_node
+                response_text = final_state.get("synthesis_response") or "This query is not related to Pakistani law."
             else:
-                response_text = "External web search was triggered but no results were retrieved."
+                # Law-related link request — format web search results
+                web_results = final_state.get("web_search_results") or []
+                if web_results:
+                    response_text = "Here are the top results from the web:\n\n"
+                    for idx, res in enumerate(web_results, 1):
+                        response_text += f"{idx}. **[{res.get('title')}]({res.get('url')})**\n{res.get('snippet')}\n\n"
+                else:
+                    response_text = "External web search was triggered but no results were retrieved."
         else:
-            # For internal RAG pipeline, return the synthesized legal memorandum
             response_text = final_state.get("synthesis_response") or "No legal response could be synthesized."
+
+        # 5. Save assistant response to short-term memory conversations table
+        try:
+            save_message(request.user_id, request.session_id, "assistant", response_text)
+        except Exception as e:
+            logger.warning(f"Failed to persist assistant message: {e}")
+
+        # 6. Trigger progressive summarization and long-term memory updates
+        #    Skip for off-topic queries — no value in saving non-legal chatter to memory
+        if status != "OFF_TOPIC_QUERY":
+            try:
+                update_session_summary(request.session_id)
+                add_long_term_memory(request.user_id, request.message, response_text, case_ref=case_ref)
+            except Exception as e:
+                logger.warning(f"Failed to run progressive summarization or long-term memory sync: {e}")
 
         return ChatResponse(
             response=response_text,

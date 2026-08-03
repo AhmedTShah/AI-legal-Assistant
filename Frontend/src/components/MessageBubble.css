@@ -140,3 +140,37 @@
   line-height: 1.6;
 }
 
+.markdown-link {
+  color: #1a73e8;
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.85em;
+  transition: color var(--transition-fast, 0.2s);
+}
+
+.markdown-link:hover {
+  color: #1557b0;
+}
+
+.markdown-link-preview {
+  color: #1a73e8;
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.85em;
+  transition: color var(--transition-fast, 0.2s);
+}
+
+.markdown-link-preview::before {
+  content: "[";
+}
+
+.markdown-link-preview::after {
+  content: "]";
+}
+
+.markdown-link-preview:hover {
+  color: #1557b0;
+}
+

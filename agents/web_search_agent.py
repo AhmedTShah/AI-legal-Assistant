@@ -103,10 +103,46 @@ def web_search_node(state: LegalMindState) -> dict:
     
     Reads:   state["user_query"]
     Returns: {"web_search_results": [...], "status": "EXTERNAL_SEARCH_COMPLETED"}
+             OR polite off-topic refusal if query is not related to law
     """
     raw_query = state.get("user_query", "")
     print(f"\n[Web Search Node] Raw query: '{raw_query}'")
 
+    # ── Off-topic check: is this query about law at all? ──
+    legal_keywords = [
+        "law", "act", "section", "article", "ordinance", "statute", "legal",
+        "court", "judge", "case", "penal", "criminal", "civil", "constitution",
+        "ppc", "crpc", "peca", "fir", "bail", "punishment", "qatl", "diyat",
+        "qisas", "hadd", "tazir", "zina", "murder", "theft", "fraud",
+        "contract", "property", "land", "revenue", "tax", "fbr", "secp",
+        "nala", "pakistan code", "punjab laws", "gazette", "regulation",
+        "supreme court", "high court", "tribunal", "arbitration", "divorce",
+        "custody", "inheritance", "succession", "writ", "petition",
+        "advocate", "lawyer", "bar council", "prosecution", "defendant",
+        "plaintiff", "judgment", "verdict", "appeal", "revision",
+        "patwari", "intiqal", "fard", "khasra", "nikah", "talaq", "khula",
+    ]
+    query_lower = raw_query.lower()
+    is_law_related = any(kw in query_lower for kw in legal_keywords)
+
+    if not is_law_related:
+        print("[Web Search Node] Query is OFF-TOPIC — not related to Pakistani law.")
+        return {
+            "synthesis_response": (
+                "I appreciate your query, but I am **LegalMind** — an AI legal research assistant "
+                "specialized exclusively in **Pakistani law**.\n\n"
+                "I can help you with:\n"
+                "- **Legal research** on Pakistani statutes, acts, and ordinances\n"
+                "- **Case law analysis** and precedent research\n"
+                "- **Punishments, bail conditions**, and procedural classifications\n"
+                "- **Legal definitions** and court procedures\n"
+                "- **Legal memo generation** for your cases\n\n"
+                "Please ask me a question related to Pakistani law, and I'll be happy to assist!"
+            ),
+            "status": "OFF_TOPIC_QUERY"
+        }
+
+    # ── Law-related link request — proceed with web search ──
     search_results = execute_web_search(raw_query, max_results=3)
 
     print(f"[Web Search Node] Returned {len(search_results)} search result(s):")

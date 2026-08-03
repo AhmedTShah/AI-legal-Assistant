@@ -23,10 +23,21 @@ _CHAT_PROMPT = """You are LegalMind, an AI-powered legal assistant for Pakistani
 Your job is to answer the user's query based strictly on the provided legal contexts (case laws, statutes).
 
 ## Instructions:
-1. **Dynamic Formatting**: 
-   - By default, provide a clear, concise, and conversational answer. Use markdown for readability (bullet points, bold text).
+1. **Response Structure & Formatting**:
+   - Provide an exhaustive, highly detailed, and comprehensive legal explanation. Aim to write a long, thorough response (typically 150-350 words depending on query complexity, though simpler queries can be shorter) with all possible points, exceptions, and procedural nuances fully explained. Do not write brief or concise summaries.
+   - Categorize the implications clearly (e.g. explain General offense details, Aggravated conditions/exceptions, and Procedural Classifications like Bail status, Compounding, and Jurisdiction in detail).
+   - Use bullet points and bold text for readability.
    - ONLY IF the user explicitly requests a "formal memo", "detailed memorandum", or similar, you must generate a full, structured legal memo including an Executive Summary, Legal Analysis, and Conclusion.
-2. **Citations & Hyperlinks**: You MUST include markdown hyperlinks for all citations if a URL is provided in the context metadata. Format them as clickable links, e.g., "[Supreme Court of Pakistan, 2023](http://...)". Never output a raw URL without a markdown wrapper.
+2. **Citations & Document Links**:
+   - DO NOT insert markdown links inside sentences.
+   - At the very end of a sentence or paragraph that references a document, append a citation link in the format `[Abbreviation](URL)`.
+   - Use short abbreviations for the document name (e.g. `PPC` for Pakistan Penal Code, `CrPC` for Code of Criminal Procedure, `Schedule II` for Schedule II Tabular Statement, or standard case citations like `PLD 2020 SC 1`).
+   - Do NOT use emojis (like 📌) or put the citation on a new line. It must be inline, right at the end of the sentence.
+   - Example:
+     ```
+     Under Section 379 of the Pakistan Penal Code, 1860, the punishment for theft is imprisonment for up to three years, a fine, or both. [PPC](http://localhost:8000/api/statutes/PPC.pdf)
+     ```
+   - If no URL is present in the context, cite it as plain text in brackets at the end of the sentence/paragraph (e.g. `[PPC]`).
 3. **Conflicts**: If different courts have conflicting views, point them out. Supreme Court (SCP) precedents always override High Court precedents.
 4. **No Hallucination**: Do NOT invent laws or cases. If the provided context is insufficient to fully answer the query, state clearly what is unknown.
 """
@@ -37,7 +48,12 @@ Your job is to write a comprehensive, professional, and well-structured legal me
 
 ## Instructions:
 1. **Structure**: Use markdown formatting. Include an Executive Summary, Legal Analysis, and Conclusion. Use proper headers (#, ##).
-2. **Citations & Hyperlinks**: You MUST include markdown hyperlinks for all citations if a URL is provided in the context metadata. Format them as clickable links, e.g., "[Supreme Court of Pakistan, 2023](http://...)". Never output a raw URL without a markdown wrapper.
+2. **Citations & Document Links**:
+   - DO NOT insert markdown links inside sentences.
+   - At the very end of a sentence or paragraph that references a document, append a citation link in the format `[Abbreviation](URL)`.
+   - Use short abbreviations for the document name (e.g. `PPC`, `CrPC`, `Schedule II`, etc.).
+   - Do NOT use emojis (like 📌) or put the citation on a new line. It must be inline, right at the end of the sentence.
+   - If no URL is present in the context, cite it as plain text in brackets at the end of the sentence/paragraph (e.g. `[PPC]`).
 3. **Synthesis**: Synthesize the rules established by the cases and apply them to the user's situation.
 4. **Tone**: Objective, professional, analytical.
 5. **No Hallucination**: Do NOT invent laws or cases.
@@ -126,12 +142,16 @@ class SynthesisAgent:
             file_name = res.get("file_name") or res.get("source_file") or "Unknown File"
             url = res.get("source_url", "")
             
-            # Fallback to our new local downloads API endpoint if no external URL exists
+            # Fallback to our local endpoints if no external URL exists
             if not url and file_name != "Unknown File":
                 # Ensure the filename is url-encoded (e.g. for spaces)
                 import urllib.parse
                 safe_filename = urllib.parse.quote(file_name)
-                url = f"http://localhost:8000/api/downloads/{safe_filename}"
+                # Check if file exists in Statutes_pipeline/statutes directory
+                base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                local_statute_path = os.path.join(base_dir, "Statutes_pipeline", "statutes", file_name)
+                if os.path.exists(local_statute_path):
+                    url = f"http://localhost:8000/api/statutes/{safe_filename}"
 
             text = res.get("text", "").strip()
             score = res.get("score", 0.0)
@@ -218,9 +238,22 @@ def synthesis_agent_node(state: LegalMindState) -> dict:
     
     print(f"\n[Synthesis Agent] Active. Synthesizing {len(retrieved_chunks)} source chunk(s)...")
 
+    user_id = state.get("user_id")
+    session_id = state.get("session_id")
+    case_ref = state.get("case_ref")
+    query = state.get("user_query", "")
+
+    if user_id and session_id:
+        try:
+            from database.memory import assemble_prompt
+            query = assemble_prompt(user_id, session_id, case_ref, query)
+            print("[Synthesis Agent] Assembled prompt with long-term memory & short-term summary contexts.")
+        except Exception as e:
+            print(f"[Synthesis Agent] Warning: Failed to assemble prompt memory contexts: {e}")
+
     try:
         agent = SynthesisAgent()
-        response_memo = agent.synthesize(state.get("user_query", ""), retrieved_chunks)
+        response_memo = agent.synthesize(query, retrieved_chunks)
         print("[Synthesis Agent] Final legal memo generated successfully.")
         return {
             "synthesis_response": response_memo,

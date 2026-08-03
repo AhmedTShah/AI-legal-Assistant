@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import ChatArea from './components/ChatArea';
 import type { Message } from './components/MessageBubble';
@@ -12,51 +12,89 @@ interface Chat {
 }
 
 export default function App() {
-  const [chats, setChats] = useState<Chat[]>([
-    {
-      id: '1',
-      title: 'Section 302 PPC Punishments',
-      messages: [
-        {
-          id: '1-1',
-          role: 'user',
-          content: 'What is the punishment under Section 302 PPC?',
-          timestamp: new Date(),
-        },
-        {
-          id: '1-2',
-          role: 'ai',
-          content: 'Under Section 302 of the Pakistan Penal Code (PPC), the punishment for Qatl-i-Amd (deliberate murder) is: \n\n1. Death (Tazir/Qisas)\n2. Imprisonment for life as Tazir having regard to the facts and circumstances of the case.\n\nThe court will determine the specific application based on evidence and whether standard proof requirements for Qisas are met.',
-          timestamp: new Date(),
-        },
-      ],
-    },
-    {
-      id: '2',
-      title: 'Cybercrime under PECA 2016',
-      messages: [
-        {
-          id: '2-1',
-          role: 'user',
-          content: 'Is cyber stalking bailable under PECA 2016?',
-          timestamp: new Date(),
-        },
-        {
-          id: '2-2',
-          role: 'ai',
-          content: 'Under Section 24 of the Prevention of Electronic Crimes Act (PECA) 2016, cyber stalking is defined. Section 43 of PECA outlines bail provisions. Cyber stalking is a non-bailable offence, which means bail cannot be claimed as a matter of right and is subject to judicial discretion.',
-          timestamp: new Date(),
-        },
-      ],
-    },
-  ]);
+  const [chats, setChats] = useState<Chat[]>(() => {
+    const savedChats = localStorage.getItem('legalmind_chats');
+    if (savedChats) {
+      try {
+        const parsed = JSON.parse(savedChats);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      } catch (e) {
+        console.error("Error loading chats from localStorage:", e);
+      }
+    }
+    return [
+      {
+        id: 'default',
+        title: 'New Legal Consultation',
+        messages: [],
+      }
+    ];
+  });
 
-  const [activeChatId, setActiveChatId] = useState<string | null>('1');
+  const [activeChatId, setActiveChatId] = useState<string | null>(() => {
+    const savedActiveId = localStorage.getItem('legalmind_active_chat_id');
+    if (savedActiveId) return savedActiveId;
+    return 'default';
+  });
+
   const [isTyping, setIsTyping] = useState(false);
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const activeChat = chats.find((c) => c.id === activeChatId) || null;
+
+  // Persist chats list to localStorage
+  useEffect(() => {
+    localStorage.setItem('legalmind_chats', JSON.stringify(chats));
+  }, [chats]);
+
+  // Persist activeChatId to localStorage
+  useEffect(() => {
+    if (activeChatId) {
+      localStorage.setItem('legalmind_active_chat_id', activeChatId);
+    } else {
+      localStorage.removeItem('legalmind_active_chat_id');
+    }
+  }, [activeChatId]);
+
+  // Automatically sync active chat history from backend on selection/startup
+  useEffect(() => {
+    if (activeChatId) {
+      syncChatHistory(activeChatId);
+    }
+  }, [activeChatId]);
+
+  const syncChatHistory = async (id: string) => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/chat/${id}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.messages && data.messages.length > 0) {
+          setChats((prev) =>
+            prev.map((c) => {
+              if (c.id === id) {
+                return {
+                  ...c,
+                  messages: data.messages.map((m: any, idx: number) => ({
+                    id: `${id}-${idx}`,
+                    role: m.role === 'human' ? 'user' : 'ai',
+                    content: m.content,
+                    timestamp: new Date(),
+                  })),
+                };
+              }
+              return c;
+            })
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Failed to sync chat history from backend:", error);
+    }
+  };
 
   const handleNewChat = () => {
     const newId = Date.now().toString();
@@ -143,14 +181,17 @@ export default function App() {
       })
     );
 
-    // 2. Fetch AI Response from FastAPI Backend
     setIsTyping(true);
     fetch("http://localhost:8000/api/chat", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ message: content }),
+      body: JSON.stringify({
+        message: content,
+        session_id: activeChatId,
+        user_id: "lawyer_abc"
+      }),
     })
       .then((res) => {
         if (!res.ok) {
@@ -206,6 +247,38 @@ export default function App() {
       });
   };
 
+  const handleDeleteChat = async (id: string) => {
+    // Remove from frontend state
+    setChats((prev) => {
+      const updated = prev.filter((c) => c.id !== id);
+      // If we deleted the active chat, switch to the first remaining or create new
+      if (activeChatId === id) {
+        if (updated.length > 0) {
+          setActiveChatId(updated[0].id);
+        } else {
+          const newId = Date.now().toString();
+          const newChat: Chat = {
+            id: newId,
+            title: 'New Legal Consultation',
+            messages: [],
+          };
+          setActiveChatId(newId);
+          return [newChat];
+        }
+      }
+      return updated;
+    });
+
+    // Delete from backend database
+    try {
+      await fetch(`http://localhost:8000/api/chat/${id}`, {
+        method: 'DELETE',
+      });
+    } catch (error) {
+      console.error('Failed to delete chat from backend:', error);
+    }
+  };
+
   const handleUpdateTitle = (newTitle: string) => {
     setChats((prev) =>
       prev.map((c) => (c.id === activeChatId ? { ...c, title: newTitle } : c))
@@ -213,12 +286,15 @@ export default function App() {
   };
 
   return (
-    <div className="app-container">
+    <div className={`app-container ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <Sidebar
         chats={chats}
         activeChatId={activeChatId}
+        isCollapsed={isSidebarCollapsed}
         onNewChat={handleNewChat}
         onSelectChat={handleSelectChat}
+        onDeleteChat={handleDeleteChat}
+        onToggleSidebar={() => setIsSidebarCollapsed((prev) => !prev)}
       />
       <div className="main-content-wrapper">
         {activeChat ? (
@@ -230,6 +306,7 @@ export default function App() {
             onSendMessage={handleSendMessage}
             onUpdateTitle={handleUpdateTitle}
             onGenerateMemo={handleGenerateMemo}
+            onLinkClick={(url) => setPreviewPdfUrl(url)}
           />
         ) : (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}>

@@ -10,19 +10,18 @@ export interface Message {
 
 interface MessageBubbleProps {
   message: Message;
+  onLinkClick?: (url: string) => void;
 }
 
-const parseMarkdown = (text: string) => {
+const parseMarkdown = (text: string, onLinkClick?: (url: string) => void) => {
   const lines = text.split('\n');
   const elements: React.ReactNode[] = [];
   let inList = false;
   let listItems: React.ReactNode[] = [];
 
   const parseInline = (inlineText: string): React.ReactNode[] => {
-    // Split by markdown link [title](url) and bold **text**
-    const combinedRegex = /(\[[^\]]+\]\(https?:\/\/[^\s\)]+\)|\*\*[^*]+\*\*)/g;
-    const parts = inlineText.split(combinedRegex);
-
+    // Split by both bold **text** and markdown links [text](url)
+    const parts = inlineText.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g);
     return parts.map((part, index) => {
       if (part.startsWith('[') && part.includes('](') && part.endsWith(')')) {
         const titleMatch = part.match(/\[([^\]]+)\]/);
@@ -43,6 +42,34 @@ const parseMarkdown = (text: string) => {
       }
       if (part.startsWith('**') && part.endsWith('**')) {
         return <strong key={index}>{part.slice(2, -2)}</strong>;
+      }
+      if (part.startsWith('[') && part.includes('](') && part.endsWith(')')) {
+        const closeBracketIdx = part.indexOf('](');
+        const textVal = part.slice(1, closeBracketIdx);
+        const url = part.slice(closeBracketIdx + 2, -1);
+        
+        const isLocal = url.startsWith('http://localhost:8000/api/') || url.startsWith('http://127.0.0.1:8000/api/');
+        
+        if (isLocal && onLinkClick) {
+          return (
+            <a
+              key={index}
+              href="#"
+              className="markdown-link-preview"
+              onClick={(e) => {
+                e.preventDefault();
+                onLinkClick(url);
+              }}
+            >
+              {textVal}
+            </a>
+          );
+        }
+        return (
+          <a key={index} href={url} target="_blank" rel="noopener noreferrer" className="markdown-link">
+            {textVal}
+          </a>
+        );
       }
       return part;
     });
@@ -88,7 +115,7 @@ const parseMarkdown = (text: string) => {
   return elements;
 };
 
-export default function MessageBubble({ message }: MessageBubbleProps) {
+export default function MessageBubble({ message, onLinkClick }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const isUser = message.role === 'user';
 
@@ -105,7 +132,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
   return (
     <div className={`message ${isUser ? 'message-user' : 'message-ai'}`}>
       <div className="message-content">
-        {parseMarkdown(message.content)}
+        {parseMarkdown(message.content, onLinkClick)}
       </div>
 
       {/* Action buttons only for AI messages */}
