@@ -74,6 +74,17 @@
   background-color: rgba(0, 0, 0, 0.07);
 }
 
+/* Active / selected mode pill */
+.chip-active {
+  background-color: rgba(235, 94, 70, 0.12) !important;
+  color: #c0392b;
+  border: 1px solid rgba(235, 94, 70, 0.3);
+}
+
+.chip-active .chip-svg {
+  color: #c0392b;
+}
+
 .chip-svg {
   color: #eb5e46; /* Coral orange icon color matching Nomi AI spec */
   flex-shrink: 0;

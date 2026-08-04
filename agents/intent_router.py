@@ -146,7 +146,17 @@ def intent_router_node(state: LegalMindState) -> dict:
     Reads:   state["user_query"]
     Returns: {"intent", "intent_reason"}
     """
-    print(f"\n[Intent Router] Query: '{state['user_query']}'")
+    raw_query = state.get("user_query", "").strip()
+    print(f"\n[Intent Router] Query: '{raw_query}'")
+
+    # ── HARD OVERRIDE FOR FRONTEND TOGGLES ──
+    # If the user explicitly clicked "Web search" in the frontend, bypass LLM classification
+    if raw_query.lower().startswith("web search:"):
+        print("[Intent Router] Manual override detected: Forcing EXTERNAL intent due to 'Web search:' prefix.")
+        return {
+            "intent": "EXTERNAL",
+            "intent_reason": "User explicitly clicked the Web Search toggle in the UI."
+        }
 
     try:
         from dotenv import load_dotenv

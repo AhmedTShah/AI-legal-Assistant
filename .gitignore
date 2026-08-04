@@ -32,6 +32,9 @@ htmlcov/
 .coverage
 *.html
 *.png
+*.pptx
+*.docx
+~$*
 check_*.py
 probe_*.py
 inspect_*.py

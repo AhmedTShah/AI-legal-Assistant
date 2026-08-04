@@ -180,7 +180,7 @@ def build_legalmind_graph():
 
     # 5. Terminal Edges to END
     builder.add_edge("synthesis_agent", END)
-    builder.add_edge("web_search", END)
+    builder.add_edge("web_search", "synthesis_agent")
 
     # 6. Compile Graph
     app = builder.compile()
