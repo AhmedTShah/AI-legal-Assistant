@@ -210,8 +210,20 @@ Always append the exact `Citation to use:` string provided in the context blocks
             import re
             for placeholder, actual_citation in context_map.items():
                 abbrev = placeholder[1:-1] # strip the [ and ] to get raw abbrev
-                pattern = r'\[\s*' + re.escape(abbrev) + r'\s*\]|' + re.escape(abbrev)
+                
+                # First, check if the LLM hallucinated the markdown link syntax itself
+                # e.g., the LLM wrote: `[Code of Criminal Procedure, 1898, Sec 22](http://...)`
+                # If so, replace that entire hallucinated block with our clean actual_citation
+                if "(" in actual_citation and ")" in actual_citation:
+                    url_str = actual_citation.split("(")[-1].split(")")[0]
+                    hallucinated_pattern = r'\[\s*' + re.escape(abbrev) + r'\s*\]\(' + re.escape(url_str) + r'\)'
+                    response_text = re.sub(hallucinated_pattern, actual_citation, response_text)
+
+                # Then, replace the standard placeholder `[Code of Criminal Procedure, 1898, Sec 22]`
+                # with the actual_citation if it wasn't caught by the hallucinated pattern above.
+                pattern = r'\[\s*' + re.escape(abbrev) + r'\s*\]'
                 response_text = re.sub(pattern, actual_citation, response_text)
+                
             return response_text
         except Exception as exc:
             logger.error("Synthesis generation failed: %s", exc)
