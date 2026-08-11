@@ -21,14 +21,14 @@
   right: 0;
   width: 360px;
   height: 100%;
-  background: var(--color-navy, #0d1b2a);
-  border-left: 1px solid rgba(255,255,255,0.07);
+  background: #f3f4f5;
+  border-left: 1px solid rgba(0,0,0,0.06);
   z-index: 101;
   display: flex;
   flex-direction: column;
   transform: translateX(100%);
   transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
-  box-shadow: -8px 0 32px rgba(0,0,0,0.35);
+  box-shadow: -8px 0 32px rgba(0,0,0,0.18);
 }
 
 .settings-panel.open { transform: translateX(0); }
@@ -38,18 +38,18 @@
   align-items: center;
   justify-content: space-between;
   padding: 24px 24px 18px;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(0,0,0,0.08);
 }
 
 .settings-title {
   font-size: 17px;
   font-weight: 600;
-  color: #fff;
+  color: #111827;
   margin: 0;
 }
 
 .settings-close {
-  color: rgba(255,255,255,0.45);
+  color: rgba(0,0,0,0.45);
   display: flex;
   align-items: center;
   padding: 6px;
@@ -58,8 +58,8 @@
 }
 
 .settings-close:hover {
-  color: #fff;
-  background: rgba(255,255,255,0.08);
+  color: #111827;
+  background: rgba(0,0,0,0.06);
 }
 
 .settings-body {
@@ -73,10 +73,10 @@
   font-weight: 600;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.35);
+  color: rgba(0,0,0,0.45);
   margin: 20px 0 12px;
   padding-top: 16px;
-  border-top: 1px solid rgba(255,255,255,0.06);
+  border-top: 1px solid rgba(0,0,0,0.08);
 }
 
 .settings-group-label:first-child {
@@ -90,42 +90,42 @@
   display: block;
   font-size: 13px;
   font-weight: 500;
-  color: rgba(255,255,255,0.85);
+  color: #111827;
   margin-bottom: 4px;
 }
 
 .settings-hint {
   font-size: 11.5px;
-  color: rgba(255,255,255,0.38);
+  color: rgba(0,0,0,0.5);
   margin: 0 0 7px;
   line-height: 1.5;
 }
 
 .settings-input {
   width: 100%;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.09);
+  background: #ffffff;
+  border: 1px solid rgba(0,0,0,0.12);
   border-radius: 8px;
   padding: 9px 12px;
   font-size: 13px;
-  color: #fff;
+  color: #111827;
   outline: none;
   box-sizing: border-box;
   transition: border-color 0.15s, background 0.15s;
 }
 
 .settings-input:focus {
-  border-color: rgba(59,130,246,0.55);
-  background: rgba(255,255,255,0.09);
+  border-color: rgba(15,23,42,0.35);
+  background: #ffffff;
 }
 
-.settings-input::placeholder { color: rgba(255,255,255,0.22); }
+.settings-input::placeholder { color: rgba(0,0,0,0.35); }
 
 .settings-save-btn {
   width: 100%;
   padding: 10px;
-  background: #3b82f6;
-  color: #fff;
+  background: #111827;
+  color: #ffffff;
   font-size: 13.5px;
   font-weight: 600;
   border-radius: 8px;
@@ -133,29 +133,29 @@
   transition: background 0.15s, transform 0.1s;
 }
 
-.settings-save-btn:hover  { background: #2563eb; }
+.settings-save-btn:hover  { background: #1f2937; }
 .settings-save-btn:active { transform: scale(0.98); }
 .settings-save-btn.saved  { background: #10b981; }
 
 .settings-danger-btn {
   padding: 8px 14px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.09);
+  background: #ffffff;
+  border: 1px solid rgba(0,0,0,0.12);
   border-radius: 8px;
   font-size: 12.5px;
-  color: rgba(255,255,255,0.7);
+  color: #111827;
   cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 
 .settings-danger-btn:hover:not(:disabled) {
-  background: rgba(248,113,113,0.1);
+  background: rgba(248,113,113,0.08);
   border-color: rgba(248,113,113,0.3);
-  color: #f87171;
+  color: #b91c1c;
 }
 
 .settings-danger-btn.danger-red {
-  color: #f87171;
+  color: #b91c1c;
   border-color: rgba(248,113,113,0.22);
 }
 
@@ -167,7 +167,7 @@
 
 .settings-footer {
   padding: 14px 24px;
-  border-top: 1px solid rgba(255,255,255,0.06);
+  border-top: 1px solid rgba(0,0,0,0.08);
   font-size: 11px;
-  color: rgba(255,255,255,0.2);
+  color: rgba(0,0,0,0.42);
 }

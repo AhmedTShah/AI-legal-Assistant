@@ -4,22 +4,23 @@
 
 .chat-input-wrapper {
   padding: var(--spacing-xl) var(--spacing-3xl) var(--spacing-xl) var(--spacing-3xl);
-  background-color: var(--color-white);
+  background: #ffffff;
 }
 
 .chat-input-container {
   display: flex;
   flex-direction: column;
-  background-color: #f1f1f2; /* Soft grey background matching Nomi AI */
-  border: 1px solid rgba(0, 0, 0, 0.04);
+  background-color: #e8eaed;
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: var(--radius-xl);
   padding: var(--spacing-md) var(--spacing-md) var(--spacing-sm) var(--spacing-lg);
   transition: box-shadow var(--transition-fast), background-color var(--transition-fast);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.3), 0 1px 3px rgba(15, 23, 42, 0.05);
 }
 
 .chat-input-container:focus-within {
-  background-color: #ebebeb;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05);
+  background-color: #dfdfe2;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.3), 0 1px 3px rgba(15, 23, 42, 0.05);
 }
 
 .chat-input-field {
@@ -62,31 +63,33 @@
   padding: 6px var(--spacing-md);
   font-size: 12px;
   font-weight: 500;
-  color: rgba(0, 0, 0, 0.8);
-  background-color: rgba(0, 0, 0, 0.04); /* Soft grey background */
+  color: #1f2937;
+  background-color: #ffffff;
   border-radius: var(--radius-full);
-  transition: background-color var(--transition-fast), transform var(--transition-fast);
-  border: none;
+  transition: background-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
+  border: 1px solid rgba(0, 0, 0, 0.1);
   cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
 .chip:hover {
-  background-color: rgba(0, 0, 0, 0.07);
+  background-color: #f8fafc;
 }
 
 /* Active / selected mode pill */
 .chip-active {
-  background-color: rgba(235, 94, 70, 0.12) !important;
-  color: #c0392b;
-  border: 1px solid rgba(235, 94, 70, 0.3);
+  background-color: #293040 !important;
+  color: #ffffff;
+  border: 1px solid #293040;
+  box-shadow: 0 4px 10px rgba(41, 48, 64, 0.24);
 }
 
 .chip-active .chip-svg {
-  color: #c0392b;
+  color: #ffffff;
 }
 
 .chip-svg {
-  color: #eb5e46; /* Coral orange icon color matching Nomi AI spec */
+  color: #111827;
   flex-shrink: 0;
 }
 
@@ -140,4 +143,63 @@
 
 .waveform-svg {
   opacity: 0.95;
+}
+
+/* ── Voice Agent Soundwave Button (Dark Badge) ───────────────── */
+.chat-input-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-input-voice-agent-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: var(--radius-full);
+  background-color: #2d2e32; /* Sleek dark grey circle as per user screenshot */
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.chat-input-voice-agent-btn:hover:not(:disabled) {
+  background-color: #1a1b1e;
+  transform: scale(1.05);
+}
+
+.chat-input-voice-agent-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.chat-input-voice-agent-btn.recording {
+  background-color: #ef4444 !important;
+  color: #ffffff !important;
+  animation: voice-pulse 1.2s infinite;
+}
+
+.soundwave-icon {
+  display: block;
+}
+
+.send-plane-svg {
+  margin-left: -1px;
+  margin-top: 1px;
+}
+
+@keyframes voice-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
 }

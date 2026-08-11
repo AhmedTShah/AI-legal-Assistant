@@ -157,15 +157,14 @@ def web_search_node(state: LegalMindState) -> dict:
         print("[Web Search Node] Query is OFF-TOPIC — not related to Pakistani law.")
         return {
             "synthesis_response": (
-                "I appreciate your query, but I am **LegalMind** — an AI legal research assistant "
-                "specialized exclusively in **Pakistani law**.\n\n"
-                "I can help you with:\n"
-                "- **Legal research** on Pakistani statutes, acts, and ordinances\n"
-                "- **Case law analysis** and precedent research\n"
-                "- **Punishments, bail conditions**, and procedural classifications\n"
-                "- **Legal definitions** and court procedures\n"
-                "- **Legal memo generation** for your cases\n\n"
-                "Please ask me a question related to Pakistani law, and I'll be happy to assist!"
+                "I am **LegalMind**, an AI legal research assistant specialized exclusively in **Pakistani law**.\n\n"
+                "**I provide the following legal services:**\n"
+                "- **Statute & Act Research**: Detailed information on Pakistani laws, acts, ordinances, PPC sections, and CrPC procedures.\n"
+                "- **Case Law & Precedents**: Finding relevant Supreme Court and High Court judgments and legal precedents.\n"
+                "- **Offense & Bail Classification**: Guidance on bailable/non-bailable offenses, punishments, and court jurisdictions.\n"
+                "- **Legal Portals & Document Links**: Official links and resources for downloading law PDFs and statutes.\n"
+                "- **Legal Memo Generation**: Automated structuring of legal research memos for lawyers and legal professionals.\n\n"
+                "Feel free to ask me anything about Pakistani legal statutes, case precedents, court procedures, or legal advice!"
             ),
             "status": "OFF_TOPIC_QUERY"
         }

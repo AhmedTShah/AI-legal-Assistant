@@ -6,12 +6,12 @@
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
   height: 100%;
-  background-color: var(--color-navy);
+  background: #e9ebee;
   display: flex;
   flex-direction: column;
   padding: var(--spacing-2xl) var(--spacing-lg) var(--spacing-lg) var(--spacing-lg);
   overflow: hidden;
-  border-right: 1px solid rgba(255, 255, 255, 0.03);
+  border-right: none;
   transition: width 0.3s ease, min-width 0.3s ease, padding 0.3s ease;
 }
 
@@ -45,35 +45,69 @@
 /* ── Sidebar Header (Logo + Toggle) ─────────────────────────── */
 .sidebar-header {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
   margin-bottom: var(--spacing-3xl);
   padding: 0 var(--spacing-sm);
+  position: relative;
+}
+
+.sidebar-toggle-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
 }
 
 .sidebar-logo {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--spacing-md);
+  gap: var(--spacing-sm);
+}
+
+.sidebar-logo-circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-bottom: var(--spacing-xs);
 }
 
 .sidebar-logo-img {
-  width: 24px;
-  height: 24px;
+  width: 52px;
+  height: 52px;
   object-fit: contain;
   flex-shrink: 0;
 }
 
+.sidebar-logo-text-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
 .sidebar-logo-text {
-  font-family: var(--font-family-serif); /* Serif font matching screenshot */
-  font-size: 21px;
-  font-weight: 500;
-  color: var(--color-white);
+  font-family: var(--font-family-serif);
+  font-size: 19px;
+  font-weight: 600;
+  color: #1a1a2e;
   letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.sidebar-logo-subtitle {
+  font-family: var(--font-family);
+  font-size: 9px;
+  font-weight: 600;
+  color: #555;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  line-height: 1;
 }
 
 .sidebar-toggle-btn {
-  color: rgba(200, 205, 214, 0.6);
+  color: rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -83,8 +117,8 @@
 }
 
 .sidebar-toggle-btn:hover {
-  color: var(--color-white);
-  background-color: rgba(255, 255, 255, 0.05);
+  color: #1a1a2e;
+  background-color: rgba(0, 0, 0, 0.06);
 }
 
 /* ── New Chat Button (Clean, Non-colorful, Transparent) ─────── */
@@ -94,18 +128,20 @@
   gap: var(--spacing-md);
   width: 100%;
   padding: var(--spacing-md) var(--spacing-lg);
-  background-color: rgba(255, 255, 255, 0.07); /* Transparent white */
-  color: rgba(255, 255, 255, 0.9);
+  background-color: #dfe1e3;
+  color: #1a1a2e;
   font-size: var(--font-size-sm);
   font-weight: 500;
-  border-radius: var(--radius-xl); /* Rounded corners */
-  transition: background-color var(--transition-fast), transform var(--transition-fast);
+  border-radius: var(--radius-xl);
+  transition: background-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
   margin-bottom: var(--spacing-2xl);
-  border: 1px solid rgba(255, 255, 255, 0.03);
+  border: none;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .sidebar-new-chat:hover {
-  background-color: rgba(255, 255, 255, 0.12);
+  background-color: #d5d8dc;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05), 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
 .new-chat-plus {
@@ -125,7 +161,7 @@
   align-items: center;
   gap: var(--spacing-lg);
   padding: var(--spacing-md) var(--spacing-lg);
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(0, 0, 0, 0.7);
   font-size: var(--font-size-base);
   font-weight: 400;
   border-radius: var(--radius-xl);
@@ -136,8 +172,8 @@
 }
 
 .sidebar-nav-item:hover {
-  background-color: rgba(255, 255, 255, 0.05);
-  color: var(--color-white);
+  background-color: rgba(255, 255, 255, 0.3);
+  color: #1a1a2e;
 }
 
 .sidebar-nav-icon {
@@ -165,7 +201,7 @@
 .sidebar-section-label {
   font-size: var(--font-size-xs);
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(0, 0, 0, 0.45);
   padding: 0 var(--spacing-lg);
   margin-bottom: var(--spacing-md);
 }
@@ -183,7 +219,7 @@
   display: flex;
   align-items: center;
   padding: var(--spacing-md) var(--spacing-lg);
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(0, 0, 0, 0.7);
   font-size: var(--font-size-base);
   font-weight: 400;
   border-radius: var(--radius-xl);
@@ -195,16 +231,17 @@
 }
 
 .sidebar-chat-item:hover {
-  background-color: rgba(255, 255, 255, 0.05);
-  color: var(--color-white);
+  background-color: rgba(0, 0, 0, 0.05);
+  color: #1a1a2e;
 }
 
 .sidebar-chat-item.active {
-  background-color: rgba(211, 172, 43, 0.15);
-  color: var(--color-white);
+  background-color: #f7f7f8;
+  color: #1a1a2e;
   border-left: 3px solid var(--color-gold);
   padding-left: calc(var(--spacing-lg) - 3px);
   font-weight: 500;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.03);
 }
 
 .sidebar-chat-title {
@@ -222,7 +259,7 @@
   justify-content: center;
   padding: 4px;
   border-radius: var(--radius-sm);
-  color: rgba(200, 205, 214, 0.35);
+  color: rgba(0, 0, 0, 0.3);
   opacity: 0;
   flex-shrink: 0;
   transition: opacity 0.2s ease, color 0.2s ease, background-color 0.2s ease;
@@ -240,7 +277,7 @@
 
 .sidebar-chat-item-empty {
   font-size: var(--font-size-sm);
-  color: rgba(200, 205, 214, 0.4);
+  color: rgba(0, 0, 0, 0.35);
   padding: var(--spacing-md) var(--spacing-lg);
 }
 
@@ -250,7 +287,7 @@
   align-items: center;
   gap: var(--spacing-md);
   padding: var(--spacing-lg) var(--spacing-sm) 0 var(--spacing-sm);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
   margin-top: auto;
 }
 
@@ -272,14 +309,14 @@
 .sidebar-user-name {
   font-size: var(--font-size-sm);
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.9);
+  color: #1a1a2e;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .sidebar-notification-btn {
-  color: rgba(200, 205, 214, 0.6);
+  color: rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -289,5 +326,5 @@
 }
 
 .sidebar-notification-btn:hover {
-  color: var(--color-white);
+  color: #1a1a2e;
 }

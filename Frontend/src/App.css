@@ -7,7 +7,7 @@
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  background-color: var(--color-navy); /* Keep navy background so sidebar area overlaps look correct */
+  background-color: var(--color-navy); /* Light grey background matching sidebar */
 }
 
 /* Split-pane container for the chat and preview */

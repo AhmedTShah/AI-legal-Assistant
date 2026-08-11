@@ -217,6 +217,44 @@ Always append the exact `Citation to use:` string provided in the context blocks
             logger.error("Synthesis generation failed: %s", exc)
             raise RuntimeError(f"Synthesis failed: {exc}") from exc
 
+    def synthesize_stream(self, original_query: str, retrieved_results: List[Dict[str, Any]], intent: str = "INTERNAL"):
+        """
+        Generates the final legal response as a generator yielding text chunks in real-time.
+        """
+        logger.info("SynthesisAgent generating streaming response for query: '%s' (Intent: %s)", original_query, intent)
+        context_str, context_map = self.format_context(retrieved_results)
+        
+        prompt = (
+            f"USER QUERY:\n{original_query}\n\n"
+            f"RETRIEVED CONTEXTS:\n{context_str}\n\n"
+            "Please answer the query based on the retrieved contexts."
+        )
+        
+        if intent == "EXTERNAL":
+            _WEB_SEARCH_PROMPT = """You are LegalMind, an AI legal assistant. The user has just run a live web search.
+Your job is to read the retrieved web search snippets and provide a helpful, natural, and conversational summary answering the user's question. 
+DO NOT act like a rigid offline database. If the user asks why you can't search a specific archive, politely explain your current capabilities.
+Always append the exact `Citation to use:` string provided in the context blocks to cite your sources inline.
+"""
+            model = self._build_model(system_instruction=_WEB_SEARCH_PROMPT)
+        else:
+            model = self._build_model(system_instruction=_CHAT_PROMPT)
+
+        try:
+            import re
+            response = model.generate_content(prompt, stream=True)
+            for chunk in response:
+                if chunk.text:
+                    text_chunk = chunk.text
+                    for placeholder, actual_citation in context_map.items():
+                        abbrev = placeholder[1:-1]
+                        pattern = r'\[\s*' + re.escape(abbrev) + r'\s*\]|' + re.escape(abbrev)
+                        text_chunk = re.sub(pattern, actual_citation, text_chunk)
+                    yield text_chunk
+        except Exception as exc:
+            logger.error("Synthesis streaming failed: %s", exc)
+            yield f"\n[Synthesis failed: {str(exc)}]"
+
     def generate_memo_pdf(self, chat_history_str: str, retrieved_results: List[Dict[str, Any]], output_path: str = "legal_memo.pdf") -> str:
         """
         Generates the formal legal memo and saves it directly as a PDF file.

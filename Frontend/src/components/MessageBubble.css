@@ -27,7 +27,7 @@
 
 .message-user .message-content {
   background-color: var(--color-navy);
-  color: var(--color-white);
+  color: #000000;
   padding: var(--spacing-md) var(--spacing-lg);
   border-radius: var(--radius-lg) var(--radius-lg) var(--spacing-xs) var(--radius-lg);
   font-size: var(--font-size-base);

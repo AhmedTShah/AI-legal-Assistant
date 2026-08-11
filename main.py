@@ -1,10 +1,12 @@
 import os
 import sys
+import json
 import logging
+import asyncio
 from typing import Dict, Any, List, Optional
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -56,6 +58,7 @@ class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = "default"
     user_id: Optional[str] = "lawyer_abc"
+    voice_mode: Optional[bool] = False
 
 class ChatHistoryRequest(BaseModel):
     history: str
@@ -209,6 +212,166 @@ async def chat_endpoint(request: ChatRequest):
         )
 
 
+@app.post("/api/chat/stream")
+async def chat_stream_endpoint(request: ChatRequest):
+    """
+    Streaming Chat Endpoint using Server-Sent Events (SSE).
+    Streams Gemini LLM tokens in real-time as they are synthesized.
+    """
+    logger.info(f"Received streaming query: {request.message} (Session: {request.session_id}, User: {request.user_id})")
+
+    # 1. Save user query to short-term memory
+    try:
+        save_message(request.user_id, request.session_id, "human", request.message)
+    except Exception as e:
+        logger.warning(f"Failed to persist human message: {e}")
+
+    # Detect case_ref if query mentions "case of X vs Y" or similar
+    case_ref = None
+    if " vs " in request.message or " versus " in request.message:
+        import re
+        match = re.search(r"([A-Za-z\s]+ v[s\.]?\s+[A-Za-z\s]+)", request.message, re.IGNORECASE)
+        if match:
+            case_ref = match.group(1).strip()
+
+    initial_state: LegalMindState = {
+        "user_query": request.message,
+        "user_id": request.user_id,
+        "session_id": request.session_id,
+        "case_ref": case_ref,
+        "intent": None,
+        "intent_reason": None,
+        "detected_language": None,
+        "requires_urdu_translation": None,
+        "primary_legal_issue": None,
+        "jurisdiction": None,
+        "key_parties": None,
+        "statutes_identified": None,
+        "sub_queries": None,
+        "complexity_score": None,
+        "web_search_results": [],
+        "status": None,
+        "retrieved_chunks": [],
+        "verified_citations": [],
+        "urdu_terms_found": [],
+        "statute_agent_response": None,
+        "case_law_agent_response": None,
+        "synthesis_response": None
+    }
+
+    async def event_generator():
+        try:
+            # 2. Invoke the specialist retrieval pipeline
+            final_state = graph_app.invoke(initial_state)
+            
+            intent = final_state.get("intent")
+            status = final_state.get("status", "")
+            
+            if intent == "EXTERNAL" and status == "OFF_TOPIC_QUERY":
+                response_text = final_state.get("synthesis_response") or (
+                    "I am LegalMind, an AI legal research assistant specialized exclusively in Pakistani law.\n\n"
+                    "I provide the following legal services:\n"
+                    "- Statute & Act Research\n"
+                    "- Case Law & Precedents\n"
+                    "- Offense & Bail Classification\n"
+                    "- Legal Memo Generation\n\n"
+                    "Feel free to ask me anything about Pakistani legal matters, statutes, or court procedures!"
+                )
+                
+                audio_b64 = None
+                if request.voice_mode:
+                    try:
+                        from services.voice_service import PiperTTS
+                        piper = PiperTTS()
+                        voice_spoken_text = (
+                            "I am LegalMind, an AI legal research assistant specialized exclusively in Pakistani law. "
+                            "I can assist you with Pakistani statutes, case law precedents, bail classifications, and legal memo generation. "
+                            "Feel free to ask me any question about Pakistani legal matters."
+                        )
+                        audio_b64 = piper.synthesize_to_base64(voice_spoken_text)
+                    except Exception as e:
+                        logger.warning(f"Off-topic TTS error: {e}")
+
+                payload = {'text': response_text, 'done': True}
+                if audio_b64:
+                    payload['audio'] = audio_b64
+
+                yield f"data: {json.dumps(payload)}\n\n"
+                try:
+                    save_message(request.user_id, request.session_id, "assistant", response_text)
+                except Exception as e:
+                    logger.warning(f"Failed to persist assistant message: {e}")
+                return
+
+            retrieved_chunks = final_state.get("retrieved_chunks") or []
+            
+            query_prompt = request.message
+            if request.user_id and request.session_id:
+                try:
+                    from database.memory import assemble_prompt
+                    query_prompt = assemble_prompt(request.user_id, request.session_id, case_ref, request.message)
+                except Exception as e:
+                    logger.warning(f"Failed to assemble memory prompt: {e}")
+
+            synthesis_agent = SynthesisAgent()
+            full_text_list = []
+            sentence_buffer = ""
+            
+            piper = None
+            if request.voice_mode:
+                try:
+                    from services.voice_service import PiperTTS
+                    piper = PiperTTS()
+                except Exception as e:
+                    logger.warning(f"Failed to initialize PiperTTS: {e}")
+            
+            for chunk in synthesis_agent.synthesize_stream(query_prompt, retrieved_chunks, intent or "INTERNAL"):
+                full_text_list.append(chunk)
+                
+                audio_payload = None
+                if request.voice_mode and piper:
+                    sentence_buffer += chunk
+                    if any(p in chunk for p in [".", "?", "!", "\n"]) and len(sentence_buffer.strip()) > 10:
+                        try:
+                            audio_payload = piper.synthesize_to_base64(sentence_buffer.strip())
+                        except Exception as e:
+                            logger.warning(f"Sentence TTS error: {e}")
+                        sentence_buffer = ""
+
+                payload = {'text': chunk, 'done': False}
+                if audio_payload:
+                    payload['audio'] = audio_payload
+
+                yield f"data: {json.dumps(payload)}\n\n"
+
+            if request.voice_mode and piper and sentence_buffer.strip():
+                try:
+                    final_audio = piper.synthesize_to_base64(sentence_buffer.strip())
+                    if final_audio:
+                        yield f"data: {json.dumps({'text': '', 'audio': final_audio, 'done': False})}\n\n"
+                except Exception:
+                    pass
+
+            full_response = "".join(full_text_list)
+            
+            yield f"data: {json.dumps({'text': '', 'done': True, 'retrieved_chunks': retrieved_chunks})}\n\n"
+
+            # 3. Post-synthesis updates
+            if status != "OFF_TOPIC_QUERY":
+                try:
+                    save_message(request.user_id, request.session_id, "assistant", full_response)
+                    update_session_summary(request.session_id)
+                    add_long_term_memory(request.user_id, request.message, full_response, case_ref=case_ref)
+                except Exception as e:
+                    logger.warning(f"Failed to update session memory after stream: {e}")
+
+        except Exception as e:
+            logger.error(f"Error during graph execution in stream: {e}")
+            yield f"data: {json.dumps({'text': f'An error occurred: {str(e)}', 'done': True})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
 def cleanup_file(path: str):
     try:
         if os.path.exists(path):
@@ -272,6 +435,35 @@ async def generate_pdf_endpoint(request: ChatHistoryRequest, background_tasks: B
         raise HTTPException(
             status_code=500,
             detail=f"Failed to generate formal PDF memo: {str(e)}"
+        )
+
+
+@app.post("/api/voice/transcribe")
+async def transcribe_audio_endpoint(file: UploadFile = File(...)):
+    """
+    Accepts an audio file (.webm / .wav / .mp3) from microphone recording,
+    transcribes it using faster-whisper (INT8 quantized), and returns the text.
+    """
+    logger.info(f"Received audio file for transcription: {file.filename} ({file.content_type})")
+    try:
+        audio_bytes = await file.read()
+        if not audio_bytes:
+            raise HTTPException(status_code=400, detail="Received empty audio file.")
+        
+        from services.voice_service import WhisperTranscriber
+        transcriber = WhisperTranscriber()
+        transcribed_text = await asyncio.to_thread(transcriber.transcribe, audio_bytes)
+        
+        return {
+            "status": "success",
+            "text": transcribed_text,
+            "filename": file.filename
+        }
+    except Exception as e:
+        logger.error(f"Error during audio transcription: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Audio transcription failed: {str(e)}"
         )
 
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import ChatArea from './components/ChatArea';
 import SettingsPanel from './components/SettingsPanel';
@@ -116,12 +116,47 @@ export default function App() {
     setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, title: newTitle } : c));
   };
 
-  const handleSendMessage = (content: string) => {
+  // Audio Queue for Continuous Sentence-Level Playback
+  const audioQueueRef = useRef<string[]>([]);
+  const isPlayingAudioRef = useRef<boolean>(false);
+
+  const playNextAudioInQueue = () => {
+    if (isPlayingAudioRef.current || audioQueueRef.current.length === 0) return;
+
+    isPlayingAudioRef.current = true;
+    const nextAudioBase64 = audioQueueRef.current.shift()!;
+    const audio = new Audio(nextAudioBase64);
+
+    audio.onended = () => {
+      isPlayingAudioRef.current = false;
+      playNextAudioInQueue();
+    };
+
+    audio.onerror = () => {
+      isPlayingAudioRef.current = false;
+      playNextAudioInQueue();
+    };
+
+    audio.play().catch(() => {
+      isPlayingAudioRef.current = false;
+      playNextAudioInQueue();
+    });
+  };
+
+  const enqueueAudioChunk = (audioBase64: string) => {
+    audioQueueRef.current.push(audioBase64);
+    playNextAudioInQueue();
+  };
+
+  const handleSendMessage = async (content: string, isVoiceMode = false) => {
     if (!activeChatId) return;
     const userMsg: Message = { id: Date.now().toString(), role: 'user', content, timestamp: new Date() };
+    const aiMsgId = (Date.now() + 1).toString();
+    const initialAiMsg: Message = { id: aiMsgId, role: 'ai', content: '', timestamp: new Date() };
+
     setChats(prev => prev.map(c => {
       if (c.id !== activeChatId) return c;
-      const msgs = [...c.messages, userMsg];
+      const msgs = [...c.messages, userMsg, initialAiMsg];
       const title = c.messages.length === 0
         ? (content.length > 30 ? content.slice(0, 30) + '...' : content)
         : c.title;
@@ -129,24 +164,80 @@ export default function App() {
     }));
 
     setIsTyping(true);
-    fetch(`${API}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: content, session_id: activeChatId, user_id: userSettings.userId }),
-    })
-      .then(res => { if (!res.ok) throw new Error('Failed to reach the legal assistant server.'); return res.json(); })
-      .then(data => {
-        const aiMsg: Message = { id: Date.now().toString(), role: 'ai', content: data.response, timestamp: new Date() };
-        setChats(prev => prev.map(c => {
-          if (c.id !== activeChatId) return c;
-          return { ...c, messages: [...c.messages, aiMsg], retrievedChunks: [...(c.retrievedChunks || []), ...(data.retrieved_chunks || [])] };
-        }));
-      })
-      .catch(err => {
-        const errMsg: Message = { id: Date.now().toString(), role: 'ai', content: `Error: ${err.message}`, timestamp: new Date() };
-        setChats(prev => prev.map(c => c.id !== activeChatId ? c : { ...c, messages: [...c.messages, errMsg] }));
-      })
-      .finally(() => setIsTyping(false));
+
+    try {
+      const response = await fetch(`${API}/api/chat/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: content,
+          session_id: activeChatId,
+          user_id: userSettings.userId,
+          voice_mode: isVoiceMode
+        }),
+      });
+
+      if (!response.ok || !response.body) {
+        throw new Error('Failed to reach the legal assistant streaming server.');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedText = '';
+      let buffer = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(trimmed.slice(6));
+              if (data.text) {
+                accumulatedText += data.text;
+                setChats(prev => prev.map(c => {
+                  if (c.id !== activeChatId) return c;
+                  return {
+                    ...c,
+                    messages: c.messages.map(m => m.id === aiMsgId ? { ...m, content: accumulatedText } : m),
+                  };
+                }));
+              }
+              if (data.audio) {
+                enqueueAudioChunk(data.audio);
+              }
+              if (data.done && data.retrieved_chunks) {
+                setChats(prev => prev.map(c => {
+                  if (c.id !== activeChatId) return c;
+                  return {
+                    ...c,
+                    retrievedChunks: [...(c.retrievedChunks || []), ...data.retrieved_chunks]
+                  };
+                }));
+              }
+            } catch (e) {
+              console.error('SSE parse error:', e);
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      setChats(prev => prev.map(c => {
+        if (c.id !== activeChatId) return c;
+        return {
+          ...c,
+          messages: c.messages.map(m => m.id === aiMsgId ? { ...m, content: `Error: ${err.message}` } : m)
+        };
+      }));
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   const handleGenerateMemo = async () => {

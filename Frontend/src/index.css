@@ -10,9 +10,9 @@
 /* ── CSS Custom Properties ──────────────────────────────────── */
 :root {
   /* Colors */
-  --color-navy: #293040;
-  --color-navy-light: #323d52;
-  --color-slate: #3B475C;
+  --color-navy: #A7AFB2;
+  --color-navy-light: #b3babe;
+  --color-slate: #9ba3a6;
   --color-slate-light: #4a5872;
   --color-gold: #D3AC2B;
   --color-gold-hover: #e0bc3f;
@@ -29,14 +29,22 @@
   /* Typography */
   --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-family-serif: 'Playfair Display', Georgia, Cambria, serif;
-  --font-size-xs: 0.75rem;     /* 12px */
-  --font-size-sm: 0.8125rem;   /* 13px */
-  --font-size-base: 0.875rem;  /* 14px */
-  --font-size-md: 0.9375rem;   /* 15px */
-  --font-size-lg: 1rem;        /* 16px */
-  --font-size-xl: 1.25rem;     /* 20px */
-  --font-size-2xl: 1.625rem;   /* 26px */
-  --font-size-3xl: 2rem;       /* 32px */
+  --font-size-xs: 0.75rem;
+  /* 12px */
+  --font-size-sm: 0.8125rem;
+  /* 13px */
+  --font-size-base: 0.875rem;
+  /* 14px */
+  --font-size-md: 0.9375rem;
+  /* 15px */
+  --font-size-lg: 1rem;
+  /* 16px */
+  --font-size-xl: 1.25rem;
+  /* 20px */
+  --font-size-2xl: 1.625rem;
+  /* 26px */
+  --font-size-3xl: 2rem;
+  /* 32px */
 
   /* Spacing */
   --spacing-xs: 4px;
@@ -78,7 +86,9 @@
   box-sizing: border-box;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   width: 100%;
   overflow: hidden;
@@ -88,11 +98,13 @@ body {
   font-family: var(--font-family);
   font-size: var(--font-size-base);
   color: var(--color-text-primary);
-  background-color: var(--color-white); /* Back to white background since app is full screen */
+  background-color: var(--color-white);
+  /* Back to white background since app is full screen */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.5;
-  padding: 0; /* Full screen - no margin/padding */
+  padding: 0;
+  /* Full screen - no margin/padding */
 }
 
 /* ── Scrollbar Styling ──────────────────────────────────────── */
@@ -138,7 +150,8 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
-input, textarea {
+input,
+textarea {
   font-family: inherit;
   font-size: inherit;
   border: none;
@@ -151,7 +164,8 @@ a {
   color: inherit;
 }
 
-ul, ol {
+ul,
+ol {
   list-style: none;
 }
 

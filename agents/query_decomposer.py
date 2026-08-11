@@ -194,7 +194,7 @@ class QueryDecomposer:
             system_instruction=_SYSTEM_PROMPT,
             generation_config=genai.GenerationConfig(
                 temperature=0.1,      # Low temperature for deterministic structured output
-                max_output_tokens=2048,
+                max_output_tokens=512,
                 response_mime_type="application/json",  # Force JSON response mode
             ),
         )
